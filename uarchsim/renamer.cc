@@ -212,7 +212,7 @@ void renamer::checkpoint()
 }
 
 // P4-D get_checkpoint_ID
-unsigned int renamer::get_checkpoint_ID(bool load, bool store, bool branch, bool amo, bool csr)
+unsigned int renamer::get_checkPoint_ID(bool load, bool store, bool branch, bool amo, bool csr)
 {
     unsigned int latest_checkpoint_ID = 0;
 

@@ -848,7 +848,7 @@ public:
 	void checkpoint();
 	
 	//P4-D get_checkPoint_ID declaration
-	unsigned int get_checkpoint_ID(bool load, bool store, bool branch, bool amo, bool csr);
+	unsigned int get_checkPoint_ID(bool load, bool store, bool branch, bool amo, bool csr);
 	
 	void free_checkpoint();
 

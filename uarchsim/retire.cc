@@ -41,7 +41,7 @@ void pipeline_t::retire(size_t& instret, size_t instret_limit) {
                if (RETSTATE.amo && !(load || store)) { // amo, excluding load-with-reservation (LR) and store-conditional (SC)
                   RETSTATE.exception = execute_amo();
                }
-               else if (csr) {
+               else if (RETSTATE.csr) {
                   RETSTATE.exception = execute_csr();
                }
                // This is probably optional.
@@ -89,25 +89,29 @@ void pipeline_t::retire(size_t& instret, size_t instret_limit) {
       {
          RETSTATE.log_reg = 0;
          for(unsigned int x=0;x<RETIRE_WIDTH;x++){
-            if(RETSTATE.num_loads_left !=0){
-      	      LSU.train(load);	     // Train MDP and update stats.
-               amo_success = LSU.commit(load, RETSTATE.amo);
-               RETSTATE.num_loads_left--;
-               assert(amo_success);
-            }
-            else if(RETSTATE.num_loads_left == 0){
-               break;
+            if(load == true){
+               if(RETSTATE.num_loads_left !=0){
+      	         LSU.train(true);	     // Train MDP and update stats.
+                  amo_success = LSU.commit(true, RETSTATE.amo);
+                  RETSTATE.num_loads_left--;
+                  assert(amo_success);
+               }
+               else if(RETSTATE.num_loads_left == 0){
+                  break;
+               }
             }
          }
          for(unsigned int x = 0;x<RETIRE_WIDTH;x++){
-            if(RETSTATE.num_stores_left != 0){
-               LSU.train(store);
-               amo_success = LSU.commit(store,RETSTATE.amo);
-               RETSTATE.num_stores_left--;
-               assert(amo_success);
-            }
-            else if(RETSTATE.num_stores_left == 0){
-               break;
+            if(load == false){
+               if(RETSTATE.num_stores_left != 0){
+                  LSU.train(false);
+                  amo_success = LSU.commit(false,RETSTATE.amo);
+                  RETSTATE.num_stores_left--;
+                  assert(amo_success);
+               }
+               else if(RETSTATE.num_stores_left == 0){
+                  break;
+               }
             }
          }
          for(unsigned int x =0;x<RETIRE_WIDTH;x++){
