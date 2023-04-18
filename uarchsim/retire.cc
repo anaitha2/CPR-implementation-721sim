@@ -4,7 +4,7 @@
 
 //P4-D Added extra parameter in pipeline_t::retire
 void pipeline_t::retire(size_t& instret, size_t instret_limit) {
-   bool head_valid;
+   bool head_valid = false;
    bool completed, exception, load_viol, br_misp, val_misp, load, store, branch, amo, csr;
    reg_t offending_PC;
 
@@ -128,7 +128,7 @@ void pipeline_t::retire(size_t& instret, size_t instret_limit) {
                break;
             }
          }
-         if((RETSTATE.num_loads_left == 0) && (RETSTATE.num_stores_left == 0) && (RETSTATE.log_reg == NXPR+NFPR)){
+         if((RETSTATE.num_loads_left == 0) && (RETSTATE.num_stores_left == 0) && (RETSTATE.log_reg == NXPR+NFPR)) {
             REN->free_checkpoint();
             RETSTATE.state = retire_state_e::RETIRE_FINALIZE;
          }
@@ -179,7 +179,6 @@ void pipeline_t::retire(size_t& instret, size_t instret_limit) {
          RETSTATE.state = retire_state_e::RETIRE_IDLE;
       }
    }
-
 
    // FIX_ME #17a
    // Call the precommit() function of the renamer module.  This tells the renamer module to return

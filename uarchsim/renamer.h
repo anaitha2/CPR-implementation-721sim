@@ -236,6 +236,8 @@ private:
 	    uint64_t  load_count;
 	    uint64_t  store_count;
 	    uint64_t  branch_count;
+
+		bool valid;
 	} CPR;
 
 	void initializeCPR(uint64_t n_phys_regs, uint64_t n_log_regs)
@@ -260,17 +262,8 @@ private:
 		CPR.load_count = 0;
 	    CPR.store_count = 0;
 	    CPR.branch_count = 0;
-	}
 
-	void decrementUsageCountersOfRegsInCheckpointRMT(uint64_t checkpoint_ID)
-	{
-		for (uint64_t i = 0; i < RMT.size; i++)
-		{
-			// checkPointBufferCPR.RMTcheckPoints[checkpoint_ID] corresponds to RMT stored at checkpoint_ID
-			// Therefore checkPointBufferCPR.RMTcheckPoints[checkpoint_ID].entry[i] contains Physical Reg number and we decrement all Phy Regs
-			// which were mapped to Logical Registers in checkpoint_ID's RMT
-			CPR.usageCounter[checkPointBufferCPR.RMTcheckPoints[checkpoint_ID].entry[i]]--;
-		}
+		CPR.valid = 1;
 	}
 	
 	/////////////////////////////////////////////////////////////////////
@@ -379,7 +372,7 @@ private:
 	// 3. checkpointed GBM
 	/////////////////////////////////////////////////////////////////////
 	struct {
-		vector<TS_MapTable> RMTcheckPoints;
+		vector<TS_MapTable> RMT;
 		vector<uint64_t> head;
 		vector<uint64_t> headPhase;
 		vector<uint64_t> GBM;
@@ -394,7 +387,7 @@ private:
 		TS_MapTable t;
 		for (uint64_t i = 0; i < checkPoints.size; i++)
 		{
-			checkPoints.RMTcheckPoints.push_back(t);
+			checkPoints.RMT.push_back(t);
 			checkPoints.head.push_back(0);
 			checkPoints.headPhase.push_back(0);
 			checkPoints.GBM.push_back(0);
@@ -431,9 +424,8 @@ private:
 	// P4 - Checkpoint Buffer
 	/////////////////////////////////////////////////////////////////////
 	struct {
-		vector<TS_CPREntries> CPRcheckpoints;
-		vector<TS_MapTable> RMTcheckPoints;
-		vector<bool> valid;
+		vector<TS_CPREntries> CPR;
+		vector<TS_MapTable> RMT;
 
 		uint64_t head, tail;
 		bool headPhase, tailPhase;
@@ -453,19 +445,18 @@ private:
 		checkPointBufferCPR.tailPhase = 0;
 
 		// First checkpoint has the info of the initial state
-		checkPointBufferCPR.CPRcheckpoints.push_back(CPR);
-		checkPointBufferCPR.RMTcheckPoints.push_back(RMT);
-		checkPointBufferCPR.valid.push_back(1);
+		checkPointBufferCPR.CPR.push_back(CPR);
+		checkPointBufferCPR.RMT.push_back(RMT);
 
 		// Rest 'checkPointBufferCPR.size(total number of checkpoints) - 1' checkpoints are empty
 		TS_CPREntries emptyEntry;
 		emptyEntry.size = n_phys_regs;
+		emptyEntry.valid = false;
 		TS_MapTable emptyRMT;
 		for (int i = 0; i < checkPointBufferCPR.size-1; i++)
 		{
-			checkPointBufferCPR.CPRcheckpoints.push_back(emptyEntry);
-			checkPointBufferCPR.RMTcheckPoints.push_back(emptyRMT);
-			checkPointBufferCPR.valid.push_back(0);
+			checkPointBufferCPR.CPR.push_back(emptyEntry);
+			checkPointBufferCPR.RMT.push_back(emptyRMT);
 		}
 	}
 
@@ -484,8 +475,8 @@ private:
 
 	void rollbackUnmappedandUsagebits(uint64_t checkpoint_ID) {
 		for (uint64_t i = 0; i < RMT.size; i++) {
-			checkPointBufferCPR.CPRcheckpoints[checkpoint_ID].usageCounter[RMT.entry[i]] = 1;
-			checkPointBufferCPR.CPRcheckpoints[checkpoint_ID].usageCounter[RMT.entry[i]] = 0;
+			checkPointBufferCPR.CPR[checkpoint_ID].usageCounter[RMT.entry[i]] = 1;
+			checkPointBufferCPR.CPR[checkpoint_ID].usageCounter[RMT.entry[i]] = 0;
 		}
 	}
 
@@ -499,25 +490,47 @@ public:
 	// Public functions.
 	////////////////////////////////////////
 
-	void increamentCPRUsageCounter(uint64_t n_phys_regs)
+	void inc_usage_counter(uint64_t phys_reg)
 	{
-		assert (n_phys_regs < CPR.size);
-		CPR.usageCounter[n_phys_regs]++;
+		CPR.usageCounter[phys_reg]++;
 	}
-	void decreamentCPRUsageCounter(uint64_t n_phys_regs)
+	void dec_usage_counter(uint64_t phys_reg)
 	{
-		assert (n_phys_regs < CPR.size);
-		CPR.usageCounter[n_phys_regs]--;
+		CPR.usageCounter[phys_reg]--;
 	}
-	void setCPRUnmappedBit(uint64_t n_phys_regs)	// no longer in RMT
+	void unmap(uint64_t phys_reg)	// no longer in RMT
 	{
-		assert (n_phys_regs < CPR.size);
-		CPR.unmappedBit[n_phys_regs] = 1;
+		CPR.unmappedBit[phys_reg] = 1;
 	}
-	void clearCPRUnmappedBit(uint64_t n_phys_regs)	// While adding physical reg to RMT
+	void map(uint64_t phys_reg)	// While adding physical reg to RMT
 	{
-		assert (n_phys_regs < CPR.size);
-		CPR.unmappedBit[n_phys_regs] = 0;
+		CPR.unmappedBit[phys_reg] = 0;
+	}
+	uint64_t nextIndexCPR(uint64_t index)
+	{
+		if (index < checkPointBufferCPR.size - 1)
+		{
+			index++;
+		}
+		else
+		{
+			index = 0;
+		}
+		
+		return index;
+	}
+	uint64_t prevIndexCPR(uint64_t index)
+	{
+		if (index > 0)
+		{
+			index--;
+		}
+		else
+		{
+			index = checkPointBufferCPR.size - 1;
+		}
+		
+		return index;
 	}
 
 	void increamentHeadInFreeList()
@@ -536,7 +549,6 @@ public:
 			freeList.headPhase  = !(freeList.headPhase);
 		}
 	}
-
 	void increamentTailInFreeList()
 	{
 		if (freeList.tail < freeList.size - 1)
@@ -556,17 +568,7 @@ public:
 
 	void increamentUncompletedInstr(uint64_t checkpoint_ID)
 	{
-		checkPointBufferCPR.CPRcheckpoints[checkpoint_ID].uncomp_instr++;
-	}
-
-	void incrementUsageCountersOfRegsInRMT()
-	{
-		for (uint64_t i = 0; i < RMT.size; i++)
-		{
-			// RMT.entry[i] contains Physical Reg number and we increament all Phy Regs
-			// which are currently mapped/present in RMT to Logical Registers
-			CPR.usageCounter[RMT.entry[i]]++;
-		}
+		checkPointBufferCPR.CPR[checkpoint_ID].uncomp_instr++;
 	}
 
 	uint64_t get_max_instr_bw_checkpoints()

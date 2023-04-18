@@ -114,7 +114,7 @@ bool renamer::stall_branch(uint64_t bundle_branch)
 uint64_t renamer::rename_rsrc(uint64_t log_reg)
 {
     uint64_t phys_reg = RMT.entry[log_reg];
-    increamentCPRUsageCounter(phys_reg);
+    inc_usage_counter(phys_reg);
     //printf("\n* Completed rename_rsrc() Renaming of Source Register r%llu to p%llu from RMT\n", log_reg, phys_reg);
     return phys_reg;
 }
@@ -129,13 +129,12 @@ uint64_t renamer::rename_rsrc(uint64_t log_reg)
 /////////////////////////////////////////////////////////////////////
 uint64_t renamer::rename_rdst(uint64_t log_reg)
 {
+    unmap(RMT.entry[log_reg]);
+
     uint64_t phys_reg = popRegisterFromFreeList();
-    if (CPR.usageCounter[RMT.entry[log_reg]] == 0)
-    {
-        setCPRUnmappedBit(RMT.entry[log_reg]);
-    }
     RMT.entry[log_reg] = phys_reg;
-    clearCPRUnmappedBit(phys_reg);
+    inc_usage_counter(phys_reg);
+    map(phys_reg);
     //PRFReadyBits.entry[log_reg] = 1;
     //printf("* Completed rename_rdst() Renaming of Destination Register r%llu to p%llu in Free List\n", log_reg, phys_reg);
     return phys_reg;
@@ -172,7 +171,7 @@ uint64_t renamer::rename_rdst(uint64_t log_reg)
     //printf("\nGBM=%llu, First Free Bit from the right=%llu", GBM, branch_ID);
     GBM = GBM | (1 << branch_ID);
     //printf(" and newGBM=%llu\n", GBM);
-    checkPoints.RMTcheckPoints[branch_ID] = RMT;
+    checkPoints.RMT[branch_ID] = RMT;
     checkPoints.head[branch_ID] = freeList.head;
     checkPoints.headPhase[branch_ID] = freeList.headPhase;
     checkPoints.GBM[branch_ID] = GBM;
@@ -186,12 +185,18 @@ uint64_t renamer::rename_rdst(uint64_t log_reg)
 void renamer::checkpoint()
 {
     // Asserting that the checkpoint at checkPointBufferCPR's tail is not valid (empty)
-    assert(checkPointBufferCPR.valid[checkPointBufferCPR.tail] == false);
+    assert(checkPointBufferCPR.CPR[checkPointBufferCPR.tail].valid == false);
 
-    checkPointBufferCPR.RMTcheckPoints[checkPointBufferCPR.tail] = RMT;
-    incrementUsageCountersOfRegsInRMT();
-    checkPointBufferCPR.CPRcheckpoints[checkPointBufferCPR.tail] = CPR;
-    checkPointBufferCPR.valid[checkPointBufferCPR.tail] = true;
+    checkPointBufferCPR.RMT[checkPointBufferCPR.tail] = RMT;
+    
+    for (uint64_t i = 0; i < RMT.size; i++)
+    {
+        // RMT.entry[i] contains Physical Reg number and we increament all Phy Regs
+        // which are currently mapped/present in RMT to Logical Registers
+        inc_usage_counter(RMT.entry[i]);
+    }
+
+    checkPointBufferCPR.CPR[checkPointBufferCPR.tail] = CPR;
 
     if (checkPointBufferCPR.tail < checkPointBufferCPR.size - 1)
     {
@@ -220,26 +225,26 @@ unsigned int renamer::get_checkpoint_ID(bool load, bool store, bool branch, bool
         latest_checkpoint_ID = checkPointBufferCPR.tail - 1;
     }
 
-    assert(checkPointBufferCPR.valid[latest_checkpoint_ID] == true);
+    assert(checkPointBufferCPR.CPR[latest_checkpoint_ID].valid == true);
 
-    checkPointBufferCPR.CPRcheckpoints[latest_checkpoint_ID].loadFlag = load;
-    checkPointBufferCPR.CPRcheckpoints[latest_checkpoint_ID].storeFlag = store;
-    checkPointBufferCPR.CPRcheckpoints[latest_checkpoint_ID].branchFlag = branch;
-    checkPointBufferCPR.CPRcheckpoints[latest_checkpoint_ID].amoFlag = amo;
-    checkPointBufferCPR.CPRcheckpoints[latest_checkpoint_ID].csrFlag = csr;
-    checkPointBufferCPR.CPRcheckpoints[latest_checkpoint_ID].exceptionBit = 0;
+    checkPointBufferCPR.CPR[latest_checkpoint_ID].loadFlag = load;
+    checkPointBufferCPR.CPR[latest_checkpoint_ID].storeFlag = store;
+    checkPointBufferCPR.CPR[latest_checkpoint_ID].branchFlag = branch;
+    checkPointBufferCPR.CPR[latest_checkpoint_ID].amoFlag = amo;
+    checkPointBufferCPR.CPR[latest_checkpoint_ID].csrFlag = csr;
+    checkPointBufferCPR.CPR[latest_checkpoint_ID].exceptionBit = 0;
 
     if (load == true)
     {
-        checkPointBufferCPR.CPRcheckpoints[latest_checkpoint_ID].load_count++;
+        checkPointBufferCPR.CPR[latest_checkpoint_ID].load_count++;
     }
     if (store == true)
     {
-        checkPointBufferCPR.CPRcheckpoints[latest_checkpoint_ID].store_count++;
+        checkPointBufferCPR.CPR[latest_checkpoint_ID].store_count++;
     }
     if (branch == true)
     {
-        checkPointBufferCPR.CPRcheckpoints[latest_checkpoint_ID].branch_count++;
+        checkPointBufferCPR.CPR[latest_checkpoint_ID].branch_count++;
     }
 
     return latest_checkpoint_ID;
@@ -248,24 +253,37 @@ unsigned int renamer::get_checkpoint_ID(bool load, bool store, bool branch, bool
 //P4-D free_checkpoint()
 void renamer::free_checkpoint()
 {
-    uint64_t old_head = checkPointBufferCPR.head;
-    assert(checkPointBufferCPR.CPRcheckpoints[old_head].uncomp_instr == 0);
-    assert(checkPointBufferCPR.valid[old_head] == true);
-    checkPointBufferCPR.valid[old_head] = false;
+    uint64_t oldest_checkpoint_ID = checkPointBufferCPR.head;
+    assert(checkPointBufferCPR.CPR[oldest_checkpoint_ID].uncomp_instr == 0);
+    assert(checkPointBufferCPR.CPR[oldest_checkpoint_ID].valid == true);
+    checkPointBufferCPR.CPR[oldest_checkpoint_ID].valid = false;
 
-    // Doubt : Do we need to make usage counter and unmapped bits of freed checkpoint to 0?
-    TS_MapTable RMT_initial = checkPointBufferCPR.RMTcheckPoints[old_head];
-    for(uint64_t i=0;i<RMT_initial.size;i++){
-        checkPointBufferCPR.CPRcheckpoints[old_head].usageCounter[RMT_initial.entry[i]]--;
-        if(checkPointBufferCPR.CPRcheckpoints[old_head].usageCounter[RMT_initial.entry[i]] == 0){
-            checkPointBufferCPR.CPRcheckpoints[old_head].unmappedBit[RMT_initial.entry[i]] = 1;
+    // -------------------------------------------------------------------------------------- //
+    // P4 - TODO
+    // I think since we need to free this checkpoint we need to decreament the usage counters
+    // in CPRs of all future checkpoints (head+1 to tail-1) and Current CPR
+    int checkpoint_ID = oldest_checkpoint_ID;
+    checkpoint_ID = nextIndexCPR(checkpoint_ID);
+    while (checkpoint_ID != checkPointBufferCPR.tail)   // All newer CPRs
+    {
+        for (uint64_t i = 0; i < RMT.size; i++)
+        {
+            checkPointBufferCPR.CPR[checkpoint_ID].usageCounter[checkPointBufferCPR.RMT[oldest_checkpoint_ID].entry[i]]--;
         }
+        checkpoint_ID = nextIndexCPR(checkpoint_ID);
     }
-    if(checkPointBufferCPR.head == checkPointBufferCPR.size -1){
+    // Current CPR --- You need to do this once because you increamented the counters when you checkpointed the CPR
+    for (uint64_t i = 0; i < RMT.size; i++)
+    {
+        dec_usage_counter(checkPointBufferCPR.RMT[oldest_checkpoint_ID].entry[i]);
+    }
+    // ------------------------------------------------------------------------------------- //
+
+    if(checkPointBufferCPR.head == checkPointBufferCPR.size -1) {
         checkPointBufferCPR.headPhase = !(checkPointBufferCPR.headPhase);
         checkPointBufferCPR.head = 0;
     }
-    else if(checkPointBufferCPR.head < checkPointBufferCPR.size -1){
+    else if(checkPointBufferCPR.head < checkPointBufferCPR.size -1) {
         checkPointBufferCPR.head++;
     }
 }
@@ -277,7 +295,7 @@ void renamer::free_checkpoint()
     //printf("\nGBM=%llu, First Free Bit from the right=%llu", GBM, branch_ID);
     GBM = GBM | (1 << branch_ID);
     //printf(" and newGBM=%llu\n", GBM);
-    checkPoints.RMTcheckPoints[branch_ID] = RMT;
+    checkPoints.RMT[branch_ID] = RMT;
     checkPoints.head[branch_ID] = freeList.head;
     checkPoints.headPhase[branch_ID] = freeList.headPhase;
     checkPoints.GBM[branch_ID] = GBM;
@@ -467,7 +485,7 @@ void renamer::write(uint64_t phys_reg, uint64_t value)
 }*/
 //P4-D
 void renamer::set_complete(uint64_t checkpoint_ID){
-    checkPointBufferCPR.CPRcheckpoints[checkpoint_ID].uncomp_instr--;
+    checkPointBufferCPR.CPR[checkpoint_ID].uncomp_instr--;
 }
 
 /////////////////////////////////////////////////////////////////////
@@ -563,7 +581,7 @@ void renamer::resolve(uint64_t AL_index, uint64_t branch_ID, bool correct)
             }
         }
 
-        RMT = checkPoints.RMTcheckPoints[branch_ID];
+        RMT = checkPoints.RMT[branch_ID];
         freeList.head = checkPoints.head[branch_ID];
         freeList.headPhase = checkPoints.headPhase[branch_ID];
 
@@ -652,7 +670,7 @@ bool renamer::precommit(uint64_t &chkpt_id, uint64_t &num_loads, uint64_t &num_s
     //assert(checkPointBufferCPR.head <= chkpt_id);
     //assert(checkPointBufferCPR.tail > chkpt_id);
 
-    TS_CPREntries chkpnt = checkPointBufferCPR.CPRcheckpoints[chkpt_id];
+    TS_CPREntries chkpnt = checkPointBufferCPR.CPR[chkpt_id];
     num_loads = chkpnt.load_count;
     num_stores = chkpnt.store_count;
     num_branches = chkpnt.branch_count;
@@ -671,7 +689,7 @@ bool renamer::precommit(uint64_t &chkpt_id, uint64_t &num_loads, uint64_t &num_s
         next_oldest_checkpoint_ID = 0;
     }
 
-    if (checkPointBufferCPR.valid[next_oldest_checkpoint_ID]==true && checkPointBufferCPR.CPRcheckpoints[oldest_checkpoint_ID].uncomp_instr==0)
+    if (checkPointBufferCPR.CPR[next_oldest_checkpoint_ID].valid==true && checkPointBufferCPR.CPR[oldest_checkpoint_ID].uncomp_instr==0)
     {
         return true;
     }
@@ -747,15 +765,11 @@ bool renamer::precommit(uint64_t &chkpt_id, uint64_t &num_loads, uint64_t &num_s
 //}
 // P4-D
 void renamer::commit(uint64_t log_reg) {
-    uint64_t oldest_head = checkPointBufferCPR.head;
+    uint64_t oldest_checkpoint_ID = checkPointBufferCPR.head;
     // Num of Logical Regs = RMT.size
     assert(log_reg < RMT.size);
-    checkPointBufferCPR.CPRcheckpoints[oldest_head].usageCounter[RMT.entry[log_reg]]--;
-    
-    if (checkPointBufferCPR.CPRcheckpoints[oldest_head].usageCounter[RMT.entry[log_reg]] == 0)
-    {
-        checkPointBufferCPR.CPRcheckpoints[oldest_head].unmappedBit[RMT.entry[log_reg])] = 1;
-    }
+    uint64_t phys_reg = checkPointBufferCPR.RMT[oldest_checkpoint_ID].entry[log_reg];
+    dec_usage_counter(phys_reg);  // Current CPR
 }
 
 //////////////////////////////////////////////////////////////////////
@@ -773,10 +787,10 @@ void renamer::commit(uint64_t log_reg) {
 void renamer::squash()
 {
     uint64_t oldest_checkpoint_ID = checkPointBufferCPR.head;
-    RMT = checkPointBufferCPR.RMTcheckPoints[oldest_checkpoint_ID];
+    RMT = checkPointBufferCPR.RMT[oldest_checkpoint_ID];
     
     //rollbackUnmappedandUsagebits(oldest_checkpoint_ID);
-    CPR = checkPointBufferCPR.CPRcheckpoints[oldest_checkpoint_ID];
+    CPR = checkPointBufferCPR.CPR[oldest_checkpoint_ID];
 
     if (oldest_checkpoint_ID < checkPointBufferCPR.size - 1)
     {
@@ -831,7 +845,7 @@ void renamer::squash()
 }*/
 
 void renamer::set_exception(uint64_t checkpoint_ID){
-    checkPointBufferCPR.CPRcheckpoints[checkpoint_ID].exceptionBit = 1;
+    checkPointBufferCPR.CPR[checkpoint_ID].exceptionBit = 1;
 }
 
 void renamer::set_load_violation(uint64_t AL_index)
