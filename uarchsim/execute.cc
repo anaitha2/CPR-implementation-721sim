@@ -164,7 +164,7 @@ void pipeline_t::execute(unsigned int lane_number) {
       if (!IS_LOAD(PAY.buf[index].flags) || hit) {
          Execution_Lanes[lane_number].wb.valid = true;
          Execution_Lanes[lane_number].wb.index = Execution_Lanes[lane_number].ex[depth].index;
-         Execution_Lanes[lane_number].wb.branch_mask = Execution_Lanes[lane_number].ex[depth].branch_mask;
+         Execution_Lanes[lane_number].wb.chkpt_id = Execution_Lanes[lane_number].ex[depth].chkpt_id;
       }
 
       // Remove instruction from Execute Stage.
@@ -217,7 +217,7 @@ void pipeline_t::execute(unsigned int lane_number) {
          // Copy instruction from [depth-1] sub-stage to [depth] sub-stage.
          Execution_Lanes[lane_number].ex[depth].valid = true;
          Execution_Lanes[lane_number].ex[depth].index = Execution_Lanes[lane_number].ex[depth-1].index;
-         Execution_Lanes[lane_number].ex[depth].branch_mask = Execution_Lanes[lane_number].ex[depth-1].branch_mask;
+         Execution_Lanes[lane_number].ex[depth].chkpt_id = Execution_Lanes[lane_number].ex[depth-1].chkpt_id;
 
          // Remove instruction from [depth-1] sub-stage.
          Execution_Lanes[lane_number].ex[depth-1].valid = false;

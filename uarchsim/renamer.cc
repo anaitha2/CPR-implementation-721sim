@@ -377,6 +377,8 @@ uint64_t renamer::rollback(uint64_t chkpt_id, bool next, uint64_t &total_loads, 
     checkPointBuffer.CPR[chkpt_id].load_count = 0;
     checkPointBuffer.CPR[chkpt_id].store_count = 0;
     checkPointBuffer.CPR[chkpt_id].branch_count = 0;
+    checkPointBuffer.CPR[chkpt_id].loadFlag = 0;
+    checkPointBuffer.CPR[chkpt_id].storeFlag = 0;
     CPR = checkPointBuffer.CPR[chkpt_id];
 
     uint64_t squash_mask = 1;

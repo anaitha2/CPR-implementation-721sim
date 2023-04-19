@@ -106,7 +106,7 @@ void pipeline_t::selective_squash(uint64_t squash_mask) {
 
 	for (i = 0; i < issue_width; i++) {
 		// Register Read Stage:
-		if (Execution_Lanes[i].rr.valid && BIT_IS_ONE(squash_mask, Execution_Lanes[i].rr.branch_mask)) {
+		if (Execution_Lanes[i].rr.valid && BIT_IS_ONE(squash_mask, Execution_Lanes[i].rr.chkpt_id)) {
 			REN->dec_usage_counter(PAY.buf[Execution_Lanes[i].rr.index].A_phys_reg);
 			REN->dec_usage_counter(PAY.buf[Execution_Lanes[i].rr.index].B_phys_reg);
 			REN->dec_usage_counter(PAY.buf[Execution_Lanes[i].rr.index].D_phys_reg);
@@ -116,7 +116,7 @@ void pipeline_t::selective_squash(uint64_t squash_mask) {
 
 		// Execute Stage:
 		for (j = 0; j < Execution_Lanes[i].ex_depth; j++) {
-			if (Execution_Lanes[i].ex[j].valid && BIT_IS_ONE(squash_mask, Execution_Lanes[i].ex[j].branch_mask)) {
+			if (Execution_Lanes[i].ex[j].valid && BIT_IS_ONE(squash_mask, Execution_Lanes[i].ex[j].chkpt_id)) {
 				REN->dec_usage_counter(PAY.buf[Execution_Lanes[i].ex[j].index].A_phys_reg);
 				REN->dec_usage_counter(PAY.buf[Execution_Lanes[i].ex[j].index].B_phys_reg);
 				REN->dec_usage_counter(PAY.buf[Execution_Lanes[i].ex[j].index].D_phys_reg);
@@ -126,7 +126,7 @@ void pipeline_t::selective_squash(uint64_t squash_mask) {
 		}
 
 		// Writeback Stage:
-		if (Execution_Lanes[i].wb.valid && BIT_IS_ONE(squash_mask, Execution_Lanes[i].wb.branch_mask)) {
+		if (Execution_Lanes[i].wb.valid && BIT_IS_ONE(squash_mask, Execution_Lanes[i].wb.chkpt_id)) {
 			REN->dec_usage_counter(PAY.buf[Execution_Lanes[i].wb.index].A_phys_reg);
 			REN->dec_usage_counter(PAY.buf[Execution_Lanes[i].wb.index].B_phys_reg);
 			REN->dec_usage_counter(PAY.buf[Execution_Lanes[i].wb.index].D_phys_reg);

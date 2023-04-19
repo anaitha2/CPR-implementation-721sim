@@ -255,8 +255,8 @@ void pipeline_t::dispatch() {
             // 2. You only need to implement one statement: a call to the Issue Queue's dispatch function.
             //    See file issue_queue.h to determine the arguments that need to be passed in. Here is some clarification:
             //    * 'index' argument: the instruction's index into PAY.buf[]
-            //    * 'branch_mask' argument: pass in the branch_mask of the instruction currently being dispatched
-            //      from the DISPATCH pipeline register, i.e., DISPATCH[i].branch_mask
+            //    * 'chkpt_id' argument: pass in the chkpt_id of the instruction currently being dispatched
+            //      from the DISPATCH pipeline register, i.e., DISPATCH[i].chkpt_id
             //    * 'lane_id' argument: pass in the instruction's lane_id, its chosen execution lane (it was determined by the steering logic, above).
             //    * 'A_valid', 'A_ready', and 'A_tag': Valid bit, ready bit (calculated above), and physical register of first source register.
             //    * 'B_valid', 'B_ready', and 'B_tag': Valid bit, ready bit (calculated above), and physical register of second source register.
@@ -264,7 +264,7 @@ void pipeline_t::dispatch() {
             // 3. As you can see in file pipeline.h, the IQ variable is the Issue Queue itself, NOT a pointer to it.
 
             // FIX_ME #10a BEGIN
-            IQ.dispatch(index, RENAME2[i].branch_mask, PAY.buf[index].lane_id,
+            IQ.dispatch(index, RENAME2[i].chkpt_id, PAY.buf[index].lane_id,
 	              PAY.buf[index].A_valid, A_ready, PAY.buf[index].A_phys_reg,
 	              PAY.buf[index].B_valid, B_ready, PAY.buf[index].B_phys_reg,
 	              PAY.buf[index].D_valid, D_ready, PAY.buf[index].D_phys_reg);

@@ -591,9 +591,9 @@ public:
 	/////////////////////////////////////////////////////////////////////
 	// This function is used to get the branch mask for an instruction.
 	/////////////////////////////////////////////////////////////////////
-	uint64_t get_branch_mask()
+	uint64_t get_chkpt_id()
 	{
-		//std::cout << "\n* Completed get_branch_mask() to read GBM=" << std::bitset<32>(GBM) << '\n';
+		//std::cout << "\n* Completed get_chkpt_id() to read GBM=" << std::bitset<32>(GBM) << '\n';
 		return GBM;
 	}
 

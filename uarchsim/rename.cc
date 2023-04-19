@@ -264,17 +264,17 @@ void pipeline_t::rename2() {
       // Get the instruction's branch mask.
       //
       // Tips:
-      // 1. Every instruction gets a branch_mask. An instruction needs to know which branches it depends on, for possible squashing.
-      // 2. The branch_mask is not held in the instruction's PAY.buf[] entry. Rather, it explicitly moves with the instruction
-      //    from one pipeline stage to the next. Normally the branch_mask would be wires at this point in the logic but since we
+      // 1. Every instruction gets a chkpt_id. An instruction needs to know which branches it depends on, for possible squashing.
+      // 2. The chkpt_id is not held in the instruction's PAY.buf[] entry. Rather, it explicitly moves with the instruction
+      //    from one pipeline stage to the next. Normally the chkpt_id would be wires at this point in the logic but since we
       //    don't have wires place it temporarily in the RENAME2[] pipeline register alongside the instruction, until it advances
       //    to the DISPATCH[] pipeline register. The required left-hand side of the assignment statement is already provided for you below:
-      //    RENAME2[i].branch_mask = ??;
+      //    RENAME2[i].chkpt_id = ??;
 
       // FIX_ME #4 BEGIN
       // P4 - replaced branch mask with checkpoint ID
-      // Thus branch_mask actually becomes chkpt_id
-      RENAME2[i].branch_mask = PAY.buf[index].chkpt_id;
+      // Thus chkpt_id actually becomes chkpt_id
+      RENAME2[i].chkpt_id = PAY.buf[index].chkpt_id;
       // FIX_ME #4 END
 
       // FIX_ME #5
@@ -345,6 +345,6 @@ void pipeline_t::rename2() {
       RENAME2[i].valid = false;
       DISPATCH[i].valid = true;
       DISPATCH[i].index = RENAME2[i].index;
-      DISPATCH[i].branch_mask = RENAME2[i].branch_mask;
+      DISPATCH[i].chkpt_id = RENAME2[i].chkpt_id;
    }
 }
