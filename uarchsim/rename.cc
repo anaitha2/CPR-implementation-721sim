@@ -189,41 +189,34 @@ void pipeline_t::rename2() {
       // P4 - Inserting a checkpoint BEFORE the instruction is renamed
       if (PAY.buf[index].inst.opcode() == OP_AMO || PAY.buf[index].inst.opcode() == OP_SYSTEM)
       {
-         // place a checkpoint before and after a serializing instruction
-         REN->checkpoint();
-         instr_renamed_since_last_checkpoint = 0;
-         //P4-D
-         // Place get_checkPoint_ID after 1st checkpoint
-         PAY.buf[index].checkpoint_ID = REN->get_checkPoint_ID(load_flag, store_flag, branch_flag, amo_flag, csr_flag);
+         if (instr_renamed_since_last_checkpoint > 0)
+         {
+            // place a checkpoint before and after a serializing instruction
+            REN->checkpoint();
+            instr_renamed_since_last_checkpoint = 0;
+            //P4-D
+            // Place get_chkpt_id after 1st checkpoint
+            PAY.buf[index].chkpt_id = REN->get_chkpt_id(load_flag, store_flag, branch_flag, amo_flag, csr_flag);
+         }
       }
       else
       {
          // 2 - Exception (Dynamic Exceptions)
          if (actual->a_exception)
          {
-            // place a checkpoint before an exception instruction
-            REN->checkpoint();
-            instr_renamed_since_last_checkpoint = 0;
-            //P4-D
-            // Place get_checkPoint_ID after checkpoint function of exception
-            PAY.buf[index].checkpoint_ID = REN->get_checkPoint_ID(load_flag, store_flag, branch_flag, amo_flag, csr_flag);
+            if (instr_renamed_since_last_checkpoint > 0)
+            {
+               // place a checkpoint before an exception instruction
+               REN->checkpoint();
+               instr_renamed_since_last_checkpoint = 0;
+               //P4-D
+               // Place get_chkpt_id after checkpoint function of exception
+               PAY.buf[index].chkpt_id = REN->get_chkpt_id(load_flag, store_flag, branch_flag, amo_flag, csr_flag);
+            }
          }
          else
          {
             // 3 - Mispredicted Branch
-            if (PAY.buf[index].inst.opcode() == OP_JAL || PAY.buf[index].inst.opcode() == OP_JALR || PAY.buf[index].inst.opcode() == OP_BRANCH)
-            {
-               if (PAY.buf[index].next_pc != actual->a_next_pc)
-               {
-
-                  //P4-D
-                  // Place get_checkPoint_ID before checkpoint function of misp branch
-                  //PAY.buf[index].checkpoint_ID = REN->get_checkPoint_ID(load_flag, store_flag, branch_flag, amo_flag, csr_flag);
-                  // place a checkpoint after a mispredicted branch
-                  //REN->checkpoint();
-                  //instr_renamed_since_last_checkpoint = 0;
-               }
-            }
          }
       }
 
@@ -257,12 +250,12 @@ void pipeline_t::rename2() {
          instr_renamed_since_last_checkpoint++;
          if (instr_renamed_since_last_checkpoint == REN->get_max_instr_bw_checkpoints())
          {
-            PAY.buf[index].checkpoint_ID = REN->get_checkPoint_ID(load_flag, store_flag, branch_flag, amo_flag, csr_flag);
+            PAY.buf[index].chkpt_id = REN->get_chkpt_id(load_flag, store_flag, branch_flag, amo_flag, csr_flag);
             REN->checkpoint();
             instr_renamed_since_last_checkpoint = 0;
          }
          //P4-D
-         REN->increamentUncompletedInstr(PAY.buf[index].checkpoint_ID);
+         REN->increamentUncompletedInstr(PAY.buf[index].chkpt_id);
       }
       // ---------------------------------- //
       // FIX_ME #3 END
@@ -279,7 +272,9 @@ void pipeline_t::rename2() {
       //    RENAME2[i].branch_mask = ??;
 
       // FIX_ME #4 BEGIN
-      RENAME2[i].branch_mask = REN->get_branch_mask();
+      // P4 - replaced branch mask with checkpoint ID
+      // Thus branch_mask actually becomes chkpt_id
+      RENAME2[i].branch_mask = PAY.buf[index].chkpt_id;
       // FIX_ME #4 END
 
       // FIX_ME #5
@@ -304,19 +299,20 @@ void pipeline_t::rename2() {
       // P4 - Inserting a checkpoint AFTER the instruction is renamed
       if (PAY.buf[index].inst.opcode() == OP_AMO || PAY.buf[index].inst.opcode() == OP_SYSTEM)
       {
-         // place a checkpoint before and after a serializing instruction
-         PAY.buf[index].checkpoint_ID = REN->get_checkPoint_ID(load_flag, store_flag, branch_flag, amo_flag, csr_flag);
-         REN->checkpoint();
-         instr_renamed_since_last_checkpoint = 0;
+         if (instr_renamed_since_last_checkpoint > 0)
+         {
+            // place a checkpoint before and after a serializing instruction
+            PAY.buf[index].chkpt_id = REN->get_chkpt_id(load_flag, store_flag, branch_flag, amo_flag, csr_flag);
+            REN->checkpoint();
+            instr_renamed_since_last_checkpoint = 0;
+         }
       }
       else
       {
          // 2 - Exception (Dynamic Exceptions)
          if (actual->a_exception)
          {
-            // place a checkpoint before an exception instruction
-            //REN->checkpoint();
-            //instr_renamed_since_last_checkpoint = 0;
+            // For exception instruction
          }
          else
          {
@@ -325,10 +321,13 @@ void pipeline_t::rename2() {
             {
                if (PAY.buf[index].next_pc != actual->a_next_pc)
                {
-                  // place a checkpoint after a mispredicted branch
-                  PAY.buf[index].checkpoint_ID = REN->get_checkPoint_ID(load_flag, store_flag, branch_flag, amo_flag, csr_flag);
-                  REN->checkpoint();
-                  instr_renamed_since_last_checkpoint = 0;
+                  if (instr_renamed_since_last_checkpoint > 0)
+                  {
+                     // place a checkpoint after a mispredicted branch
+                     PAY.buf[index].chkpt_id = REN->get_chkpt_id(load_flag, store_flag, branch_flag, amo_flag, csr_flag);
+                     REN->checkpoint();
+                     instr_renamed_since_last_checkpoint = 0;
+                  }
                }
             }
          }

@@ -96,58 +96,16 @@ private:
 		assert ((freeList.head != freeList.tail) || (freeList.headPhase != freeList.tailPhase));
 		uint64_t physicalRegisterNumber = freeList.entry[freeList.head];
 		//printf("\nPop a Reg from FreeList: Head=%llu, PhysicalRegNo=%llu", freeList.head, physicalRegisterNumber);
-		if (freeList.head < freeList.size - 1)
-		{
-			freeList.head++;
-		}
-		else
-		{
-			assert (freeList.tailPhase != freeList.headPhase);
-
-			freeList.head = 0;
+		freeList.head = (freeList.head + 1) % freeList.size;
+		if (freeList.head == 0)
 			freeList.headPhase  = !(freeList.headPhase);
-		}
+
 		//printf(" and now newHead=%llu\n", freeList.head);
 		return physicalRegisterNumber;
 	}
 
 	/////////////////////////////////////////////////////////////////////
 	// Structure 4: Active List
-	//
-	// Entry contains:
-	//
-	// ----- Fields related to destination register.
-	// 1. destination flag (indicates whether or not the instr. has a
-	//    destination register)
-	// 2. logical register number of the instruction's destination
-	// 3. physical register number of the instruction's destination
-	// ----- Fields related to completion status.
-	// 4. completed bit
-	// ----- Fields for signaling offending instructions.
-	// 5. exception bit
-	// 6. load violation bit
-	//    * Younger load issued before an older conflicting store.
-	//      This can happen when speculative memory disambiguation
-	//      is enabled.
-	// 7. branch misprediction bit
-	//    * At present, not ever set by the pipeline. It is simply
-	//      available for deferred-recovery Approaches #1 or #2.
-	//      Project 1 uses Approach #5, however.
-	// 8. value misprediction bit
-	//    * At present, not ever set by the pipeline. It is simply
-	//      available for deferred-recovery Approaches #1 or #2,
-	//      if value prediction is added (e.g., research projects).
-	// ----- Fields indicating special instruction types.
-	// 9. load flag (indicates whether or not the instr. is a load)
-	// 10. store flag (indicates whether or not the instr. is a store)
-	// 11. branch flag (indicates whether or not the instr. is a branch)
-	// 12. amo flag (whether or not instr. is an atomic memory operation)
-	// 13. csr flag (whether or not instr. is a system instruction)
-	// ----- Other fields.
-	// 14. program counter of the instruction
-	//
-	// Notes:
-	// * Structure includes head, tail, and their phase bits.
 	/////////////////////////////////////////////////////////////////////
 	struct TS_activeListEntries {
 		bool destinationFlag;
@@ -219,7 +177,6 @@ private:
 	// P4 - CPR Structure
 	/////////////////////////////////////////////////////////////////////
 	// P4-D 
-
 	struct TS_CPREntries {
 		vector <uint64_t> unmappedBit;
 		vector <uint64_t> usageCounter;
@@ -232,12 +189,10 @@ private:
 		bool csrFlag;
 		bool exceptionBit;
 		
-		uint64_t  uncomp_instr;                        
+		uint64_t  uncomp_instr;
 	    uint64_t  load_count;
 	    uint64_t  store_count;
 	    uint64_t  branch_count;
-
-		bool valid;
 	} CPR;
 
 	void initializeCPR(uint64_t n_phys_regs, uint64_t n_log_regs)
@@ -262,8 +217,6 @@ private:
 		CPR.load_count = 0;
 	    CPR.store_count = 0;
 	    CPR.branch_count = 0;
-
-		CPR.valid = 1;
 	}
 	
 	/////////////////////////////////////////////////////////////////////
@@ -301,49 +254,15 @@ private:
 				PRFReadyBits.entry.push_back(0);
 			}
 		}
-		for (uint64_t i=0; i<AMT.size; i++)
+		for (uint64_t i=0; i<RMT.size; i++)
 		{
-			assert (AMT.entry[i] < PRFReadyBits.size);
-			PRFReadyBits.entry[AMT.entry[i]] = 1;
+			assert (RMT.entry[i] < PRFReadyBits.size);
+			PRFReadyBits.entry[RMT.entry[i]] = 1;
 		}
 	}
 	
 	/////////////////////////////////////////////////////////////////////
 	// Structure 7: Global Branch Mask (GBM)
-	//
-	// The Global Branch Mask (GBM) is a bit vector that keeps track of
-	// all unresolved branches. A '1' bit corresponds to an unresolved
-	// branch. The "branch ID" of the unresolved branch is its position
-	// in the bit vector.
-	//
-	// The GBM serves two purposes:
-	//
-	// 1. It provides a means for allocating checkpoints to unresolved
-	//    branches. There are as many checkpoints as there are bits in
-	//    the GBM. If all bits in the GBM are '1', then there are no
-	//    free bits, hence, no free checkpoints. On the other hand, if
-	//    not all bits in the GBM are '1', then any of the '0' bits
-	//    are free and the corresponding checkpoints are free.
-	//    
-	// 2. Each in-flight instruction needs to know which unresolved
-	//    branches it depends on, i.e., which unresolved branches are
-	//    logically before it in program order. This information
-	//    makes it possible to squash instructions that are after a
-	//    branch, in program order, and not instructions before the
-	//    branch. This functionality will be implemented using
-	//    branch masks, as was done in the MIPS R10000 processor.
-	//    An instruction's initial branch mask is the value of the
-	//    the GBM when the instruction is renamed.
-	//
-	// The simulator requires an efficient implementation of bit vectors,
-	// for quick copying and manipulation of bit vectors. Therefore, you
-	// must implement the GBM as type "uint64_t".
-	// (#include <inttypes.h>, already at top of this file)
-	// The "uint64_t" type contains 64 bits, therefore, the simulator
-	// cannot support a processor configuration with more than 64
-	// unresolved branches. The maximum number of unresolved branches
-	// is configurable by the user of the simulator, and can range from
-	// 1 to 64.
 	/////////////////////////////////////////////////////////////////////
 	uint64_t totalUnresolvedBranches;
 	uint64_t GBM;
@@ -365,11 +284,6 @@ private:
 
 	/////////////////////////////////////////////////////////////////////
 	// Structure 8: Branch Checkpoints
-	//
-	// Each branch checkpoint contains the following:
-	// 1. Shadow Map Table (checkpointed Rename Map Table)
-	// 2. checkpointed Free List head pointer and its phase bit
-	// 3. checkpointed GBM
 	/////////////////////////////////////////////////////////////////////
 	struct {
 		vector<TS_MapTable> RMT;
@@ -424,59 +338,67 @@ private:
 	// P4 - Checkpoint Buffer
 	/////////////////////////////////////////////////////////////////////
 	struct {
+		uint64_t size;	// Indicates the total number of checkpoints
+
 		vector<TS_CPREntries> CPR;
 		vector<TS_MapTable> RMT;
+		vector<bool> valid;
 
 		uint64_t head, tail;
 		bool headPhase, tailPhase;
-		uint64_t size;	// Indicates the total number of checkpoints
+
 		uint64_t rob_size;	// Indicates the total number of instructions that can be checkpointed
 		uint64_t max_instr_bw_checkpoints;	// Indicates the maximum number of instructions between 2 checkpoints
-	} checkPointBufferCPR;
+	} checkPointBuffer;
 
-	void initializecheckPointBufferCPR(uint64_t n_phys_regs, uint64_t n_log_regs, uint64_t n_checkpoints, uint64_t n_active)
+	void initializecheckPointBuffer(uint64_t n_phys_regs, uint64_t n_log_regs, uint64_t n_checkpoints, uint64_t n_active)
 	{
-		checkPointBufferCPR.size = n_checkpoints;
-		checkPointBufferCPR.rob_size = n_active;
-		checkPointBufferCPR.max_instr_bw_checkpoints = n_active / n_checkpoints;
-		checkPointBufferCPR.head = 0;
-		checkPointBufferCPR.tail = 1;
-		checkPointBufferCPR.headPhase = 0;
-		checkPointBufferCPR.tailPhase = 0;
+		checkPointBuffer.size = n_checkpoints;
+		checkPointBuffer.rob_size = n_active;
+		checkPointBuffer.max_instr_bw_checkpoints = n_active / n_checkpoints;
+		checkPointBuffer.head = 0;
+		checkPointBuffer.tail = 1;
+		checkPointBuffer.headPhase = 0;
+		checkPointBuffer.tailPhase = 0;
 
 		// First checkpoint has the info of the initial state
-		checkPointBufferCPR.CPR.push_back(CPR);
-		checkPointBufferCPR.RMT.push_back(RMT);
+		checkPointBuffer.CPR.push_back(CPR);
+		checkPointBuffer.RMT.push_back(RMT);
+		checkPointBuffer.valid.push_back(true);
 
-		// Rest 'checkPointBufferCPR.size(total number of checkpoints) - 1' checkpoints are empty
+		// Rest 'checkPointBuffer.size(total number of checkpoints) - 1' checkpoints are empty
 		TS_CPREntries emptyEntry;
 		emptyEntry.size = n_phys_regs;
-		emptyEntry.valid = false;
 		TS_MapTable emptyRMT;
-		for (int i = 0; i < checkPointBufferCPR.size-1; i++)
+		for (int i = 0; i < checkPointBuffer.size-1; i++)
 		{
-			checkPointBufferCPR.CPR.push_back(emptyEntry);
-			checkPointBufferCPR.RMT.push_back(emptyRMT);
+			checkPointBuffer.CPR.push_back(emptyEntry);
+			checkPointBuffer.RMT.push_back(emptyRMT);
+			checkPointBuffer.valid.push_back(false);
 		}
 	}
 
-	uint64_t noOfAvailableCheckpointsCPR()
+	uint64_t noOfFreeCheckpoints()
 	{
-		if (checkPointBufferCPR.headPhase == checkPointBufferCPR.tailPhase)
+		if (checkPointBuffer.headPhase == checkPointBuffer.tailPhase)
 		{
-			return checkPointBufferCPR.size - (checkPointBufferCPR.tail - checkPointBufferCPR.head);
+			return checkPointBuffer.size - (checkPointBuffer.tail - checkPointBuffer.head);
 		}
 		else
 		{
-			return checkPointBufferCPR.tail - checkPointBufferCPR.head;
+			return checkPointBuffer.head - checkPointBuffer.tail;
 		}
 	}
-	//P4-D
 
-	void rollbackUnmappedandUsagebits(uint64_t checkpoint_ID) {
-		for (uint64_t i = 0; i < RMT.size; i++) {
-			checkPointBufferCPR.CPR[checkpoint_ID].usageCounter[RMT.entry[i]] = 1;
-			checkPointBufferCPR.CPR[checkpoint_ID].usageCounter[RMT.entry[i]] = 0;
+	uint64_t noOfFilledCheckpoints()
+	{
+		if (checkPointBuffer.headPhase == checkPointBuffer.tailPhase)
+		{
+			return (checkPointBuffer.tail - checkPointBuffer.head);
+		}
+		else
+		{
+			return checkPointBuffer.size - (checkPointBuffer.head - checkPointBuffer.tail);
 		}
 	}
 
@@ -489,6 +411,15 @@ public:
 	////////////////////////////////////////
 	// Public functions.
 	////////////////////////////////////////
+	void increamentUncompletedInstr(uint64_t chkpt_id)
+	{
+		checkPointBuffer.CPR[chkpt_id].uncomp_instr++;
+	}
+
+	uint64_t get_max_instr_bw_checkpoints()
+	{
+		return checkPointBuffer.max_instr_bw_checkpoints;
+	}
 
 	void inc_usage_counter(uint64_t phys_reg)
 	{
@@ -506,75 +437,6 @@ public:
 	{
 		CPR.unmappedBit[phys_reg] = 0;
 	}
-	uint64_t nextIndexCPR(uint64_t index)
-	{
-		if (index < checkPointBufferCPR.size - 1)
-		{
-			index++;
-		}
-		else
-		{
-			index = 0;
-		}
-		
-		return index;
-	}
-	uint64_t prevIndexCPR(uint64_t index)
-	{
-		if (index > 0)
-		{
-			index--;
-		}
-		else
-		{
-			index = checkPointBufferCPR.size - 1;
-		}
-		
-		return index;
-	}
-
-	void increamentHeadInFreeList()
-	{
-		if (freeList.head < freeList.size - 1)
-		{
-			freeList.head++;
-		}
-		else
-		{
-			// head is at the last index
-			// If tail is at last index and headPhase==tailPhase then we cannot advance head
-			// because the free list is empty and there are no registers to pop
-			assert( !((freeList.tail == freeList.size - 1) && (freeList.tailPhase == freeList.headPhase)) );
-			freeList.head = 0;
-			freeList.headPhase  = !(freeList.headPhase);
-		}
-	}
-	void increamentTailInFreeList()
-	{
-		if (freeList.tail < freeList.size - 1)
-		{
-			freeList.tail++;
-		}
-		else
-		{
-			// tail is at the last index
-			// If head is at last index and tailPhase!=headPhase then we cannot advance tail
-			// because the free list is full
-			assert( !((freeList.head == freeList.size - 1) && (freeList.tailPhase != freeList.headPhase)) );
-			freeList.tail = 0;
-			freeList.tailPhase  = !(freeList.tailPhase);
-		}
-	}
-
-	void increamentUncompletedInstr(uint64_t checkpoint_ID)
-	{
-		checkPointBufferCPR.CPR[checkpoint_ID].uncomp_instr++;
-	}
-
-	uint64_t get_max_instr_bw_checkpoints()
-	{
-		return checkPointBufferCPR.max_instr_bw_checkpoints;
-	}
 
 	void printRMTState()
 	{
@@ -583,26 +445,6 @@ public:
 		for (uint64_t i = 0 ; i < RMT.size; i++)
 		{
 			std::cout << 'r' << i << "(p" << RMT.entry[i] << ")" << "\t";
-			if (m < 9)
-			{
-				m++;
-			}
-			else
-			{
-				std::cout << '\n';
-				m = 0;
-			}
-		}
-		std::cout << "---------------------------\n";
-	}
-
-	void printAMTState()
-	{
-		std::cout << "-------- AMT State --------\n";
-		uint64_t m = 0;
-		for (uint64_t i = 0 ; i < AMT.size; i++)
-		{
-			std::cout << 'r' << i << "(p" << AMT.entry[i] << ")" << "\t";
 			if (m < 9)
 			{
 				m++;
@@ -677,58 +519,12 @@ public:
 		std::cout << "-------------------------------------\n";
 	}
 
-	void printActiveListState()
-	{
-		std::cout << "-------- Active List State --------\n";
-		printf("HEAD=%llu, TAIL=%llu, HEADPHASE=%llu, TAILPHASE=%llu, SIZE=%llu\n", activeList.head, activeList.tail, activeList.headPhase, activeList.tailPhase, activeList.size);
-		if (activeList.head <= activeList.tail)
-		{
-			for (uint64_t i = activeList.head; i < activeList.tail; i++)
-			{
-				std::cout << i << "(destinationFlag=" << activeList.entry[i].destinationFlag << ", r" << activeList.entry[i].logicalRegisterNumber << ", p" << activeList.entry[i].physicalRegisterNumber << ", completedBit=" << activeList.entry[i].completedBit << ", " << activeList.entry[i].exceptionBit << ", " << activeList.entry[i].loadViolationBit << ", branchMispredictionBit=" << activeList.entry[i].branchMispredictionBit << ", " << activeList.entry[i].valueMispredictionBit << ", loadFlag=" << activeList.entry[i].loadFlag << ", storeFlag=" << activeList.entry[i].storeFlag << ", branchFlag=" << activeList.entry[i].branchFlag << ", " << activeList.entry[i].amoFlag << ", " << activeList.entry[i].csrFlag << ", " << activeList.entry[i].PC << ")\n";
-			}
-		}
-		else
-		{
-			for (uint64_t i = activeList.head; i < activeList.size; i++)
-			{
-				std::cout << i << "(destinationFlag=" << activeList.entry[i].destinationFlag << ", r" << activeList.entry[i].logicalRegisterNumber << ", p" << activeList.entry[i].physicalRegisterNumber << ", completedBit=" << activeList.entry[i].completedBit << ", " << activeList.entry[i].exceptionBit << ", " << activeList.entry[i].loadViolationBit << ", branchMispredictionBit=" << activeList.entry[i].branchMispredictionBit << ", " << activeList.entry[i].valueMispredictionBit << ", loadFlag=" << activeList.entry[i].loadFlag << ", storeFlag=" << activeList.entry[i].storeFlag << ", branchFlag=" << activeList.entry[i].branchFlag << ", " << activeList.entry[i].amoFlag << ", " << activeList.entry[i].csrFlag << ", " << activeList.entry[i].PC << ")\n";
-			}
-			for (uint64_t i = 0; i < activeList.tail; i++)
-			{
-				std::cout << i << "(destinationFlag=" << activeList.entry[i].destinationFlag << ", r" << activeList.entry[i].logicalRegisterNumber << ", p" << activeList.entry[i].physicalRegisterNumber << ", completedBit=" << activeList.entry[i].completedBit << ", " << activeList.entry[i].exceptionBit << ", " << activeList.entry[i].loadViolationBit << ", branchMispredictionBit=" << activeList.entry[i].branchMispredictionBit << ", " << activeList.entry[i].valueMispredictionBit << ", loadFlag=" << activeList.entry[i].loadFlag << ", storeFlag=" << activeList.entry[i].storeFlag << ", branchFlag=" << activeList.entry[i].branchFlag << ", " << activeList.entry[i].amoFlag << ", " << activeList.entry[i].csrFlag << ", " << activeList.entry[i].PC << ")\n";
-			}
-		}
-		std::cout << "-----------------------------------\n";
-	}
-
-	void printCheckpointState()
-	{
-		std::cout << "-------- Checkpoints State --------\n";
-		printf("CheckPoint Size=%llu\n", checkPoints.size);
-		for(uint64_t i = 0; i < checkPoints.size ; i++)
-		{
-			if (checkPoints.valid[i] == 1)
-			{
-				std::cout << "branch_id(" << i << "), ";
-				std::cout << "head(" << checkPoints.head[i] << "), ";
-				std::cout << "headPhase(" << checkPoints.headPhase[i] << "), ";
-				std::cout << "GBM(" << std::bitset<32>(checkPoints.GBM[i]) << "), ";
-				std::cout << "valid(" << checkPoints.valid[i] << ")\n";
-			}
-		}
-		std::cout << "-----------------------------------\n";
-	}
-
 	void printDetailedStates()
 	{
 		printRMTState();
-		printAMTState();
 		printFreeListState();
-		printActiveListState();
 		printPRFState();
 		printPRFReadyBitState();
-		printCheckpointState();
 	}
 	
 	/////////////////////////////////////////////////////////////////////
@@ -848,7 +644,7 @@ public:
 	void checkpoint();
 	
 	//P4-D get_checkPoint_ID declaration
-	unsigned int get_checkPoint_ID(bool load, bool store, bool branch, bool amo, bool csr);
+	unsigned int get_chkpt_id(bool load, bool store, bool branch, bool amo, bool csr);
 	
 	void free_checkpoint();
 
@@ -946,7 +742,7 @@ public:
 	/////////////////////////////////////////////////////////////////////
 	//void set_complete(uint64_t AL_index);
     // P4-D
-	void set_complete(uint64_t checkpoint_ID);
+	void set_complete(uint64_t chkpt_id);
 	/////////////////////////////////////////////////////////////////////
 	// This function is for handling branch resolution.
 	//
@@ -995,7 +791,7 @@ public:
 	//   reaches the head of the Active List. We don’t want or need
 	//   that because we immediately recover within this function.)
 	/////////////////////////////////////////////////////////////////////
-	void resolve(uint64_t AL_index, uint64_t branch_ID, bool correct);
+	uint64_t rollback(uint64_t chkpt_id, bool next, uint64_t &total_loads, uint64_t &total_stores, uint64_t &total_branches);
 
 	//////////////////////////////////////////
 	// Functions related to Retire Stage.   //
@@ -1080,7 +876,7 @@ public:
 	/////////////////////////////////////////////////////////////////////
 	//void set_exception(uint64_t AL_index);
 	//P4-D
-	void set_exception(uint64_t checkpoint_ID);
+	void set_exception(uint64_t chkpt_id);
 	void set_load_violation(uint64_t AL_index);
 	void set_branch_misprediction(uint64_t AL_index);
 	void set_value_misprediction(uint64_t AL_index);

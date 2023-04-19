@@ -186,7 +186,7 @@ typedef struct {
                                 // in the Global Branch Mask).
 
    // P4-D
-   unsigned int checkpoint_ID;
+   uint64_t chkpt_id;
 
    ////////////////////////
    // Set by Dispatch Stage.

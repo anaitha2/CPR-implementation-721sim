@@ -139,7 +139,7 @@ void pipeline_t::retire(size_t& instret, size_t instret_limit) {
       }
       else if (RETSTATE.state == retire_state_e::RETIRE_FINALIZE)
       {
-         while((PAY.buf[PAY.head].checkpoint_ID == RETSTATE.chkpt_id) || (PAY.head == PAY.tail)){
+         while((PAY.buf[PAY.head].chkpt_id == RETSTATE.chkpt_id) || (PAY.head == PAY.tail)){
             if (IS_FP_OP(PAY.buf[PAY.head].flags)) {
                // post the FP exception bit to CSR fflags (the Accrued Exception Flags)
                get_state()->fflags |= PAY.buf[PAY.head].fflags;
@@ -242,7 +242,7 @@ void pipeline_t::retire(size_t& instret, size_t instret_limit) {
          }
 
          if (exception)
-	         REN->set_exception(PAY.buf[PAY.head].checkpoint_ID);
+	         REN->set_exception(PAY.buf[PAY.head].chkpt_id);
       }
 
       if (!exception && !load_viol) {

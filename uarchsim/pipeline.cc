@@ -722,8 +722,8 @@ uint32_t pipeline_t::get_instruction(uint64_t inst_pc){
   return (uint32_t)inst_raw.insn.bits();
 }
 
-void pipeline_t::set_exception(unsigned int checkpoint_ID) {
-   REN->set_exception(checkpoint_ID);
+void pipeline_t::set_exception(unsigned int chkpt_id) {
+   REN->set_exception(chkpt_id);
 }
 
 void pipeline_t::set_load_violation(unsigned int al_index) {

@@ -79,7 +79,7 @@ public:
 	void select_and_issue(unsigned int num_lanes, lane* Execution_Lanes);
 	void flush();
 	void clear_branch_bit(unsigned int branch_ID);
-	void squash(unsigned int branch_ID);
+	void squash(uint64_t squash_mask);
   void dump_iq(pipeline_t* proc, unsigned int index,FILE* file=stderr);
 };
 

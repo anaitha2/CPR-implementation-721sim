@@ -288,9 +288,16 @@ void issue_queue::clear_branch_bit(unsigned int branch_ID) {
 	}
 }
 
-void issue_queue::squash(unsigned int branch_ID) {
+void issue_queue::squash(uint64_t squash_mask) {
 	for (unsigned int i = 0; i < size; i++) {
-		if (q[i].valid && BIT_IS_ONE(q[i].branch_mask, branch_ID)) {
+		// Now q[i].branch_mask has the chkpt_id
+		// Since we assigned 'chkpt_id' to 'RENAMER[i].branch_mask'
+		if (q[i].valid && BIT_IS_ONE(squash_mask, q[i].branch_mask)) {
+			proc->REN->dec_usage_counter(proc->PAY.buf[q[i].index].A_phys_reg);
+			proc->REN->dec_usage_counter(proc->PAY.buf[q[i].index].B_phys_reg);
+			proc->REN->dec_usage_counter(proc->PAY.buf[q[i].index].D_phys_reg);
+			proc->REN->dec_usage_counter(proc->PAY.buf[q[i].index].C_phys_reg);
+			
 			remove(i);
 		}
 	}
