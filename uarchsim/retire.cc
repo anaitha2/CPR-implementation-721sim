@@ -14,8 +14,6 @@ void pipeline_t::retire(size_t& instret, size_t instret_limit) {
    //P4-D
    //RETSTATE.state = retire_state_e::RETIRE_IDLE;
    bool proceed;
-   while(true)
-   {
       if (RETSTATE.state == retire_state_e::RETIRE_IDLE)
       {
          proceed = REN->precommit(RETSTATE.chkpt_id, RETSTATE.num_loads_left, RETSTATE.num_stores_left, RETSTATE.num_branches_left, RETSTATE.amo, RETSTATE.csr, RETSTATE.exception);
@@ -50,7 +48,6 @@ void pipeline_t::retire(size_t& instret, size_t instret_limit) {
                   REN->set_exception(RETSTATE.chkpt_id);
 
                RETSTATE.state = retire_state_e::RETIRE_BULK_COMMIT;
-               return;
             }
             else {   // exception is true
                trap = PAY.buf[PAY.head].trap.get();
@@ -85,7 +82,7 @@ void pipeline_t::retire(size_t& instret, size_t instret_limit) {
             }
          }
       }
-      else if (RETSTATE.state == retire_state_e::RETIRE_BULK_COMMIT)
+      if (RETSTATE.state == retire_state_e::RETIRE_BULK_COMMIT)
       {
          RETSTATE.log_reg = 0;
          for(unsigned int x=0;x<RETIRE_WIDTH;x++){
@@ -182,7 +179,7 @@ void pipeline_t::retire(size_t& instret, size_t instret_limit) {
          }
          RETSTATE.state = retire_state_e::RETIRE_IDLE;
       }
-   }
+   
 
    // FIX_ME #17a
    // Call the precommit() function of the renamer module.  This tells the renamer module to return

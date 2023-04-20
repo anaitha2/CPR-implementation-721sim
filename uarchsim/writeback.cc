@@ -101,6 +101,7 @@ void pipeline_t::writeback(unsigned int lane_number) {
       //////////////////////////////////////////////////////////////////////////////////////////////////////////
 
       // FIX_ME #16 BEGIN
+      //printf("index=%llu and chkpt_id=%llu\n", index, PAY.buf[index].chkpt_id);
       REN->set_complete(PAY.buf[index].chkpt_id);
       // FIX_ME #16 END
 

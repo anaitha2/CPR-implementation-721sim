@@ -20,6 +20,7 @@ renamer::renamer(uint64_t n_log_regs, uint64_t n_phys_regs, uint64_t n_branches,
     initializeFreeList(n_phys_regs, n_log_regs);
     initializePRF(n_phys_regs);
     initializePRFReadyBits(n_phys_regs);
+    initializeCPR(n_phys_regs, n_log_regs);
     initializecheckPointBuffer(n_phys_regs, n_log_regs, n_branches, n_active);
     //printf("\n* Completed renamer()\n");
     //printDetailedStates();
@@ -75,12 +76,15 @@ uint64_t renamer::rename_rdst(uint64_t log_reg)
 // P4 - checkpoint()
 void renamer::checkpoint()
 {
+    //printf("* Requested checkpoint() at chkpt_id=%llu\n", checkPointBuffer.tail);
     // Asserting that the checkpoint at checkPointBuffer's tail is not valid (empty)
     assert(checkPointBuffer.valid[checkPointBuffer.tail] == false);
     
-    checkPointBuffer.valid[checkPointBuffer.tail] == true;
+    checkPointBuffer.valid[checkPointBuffer.tail] = true;
     checkPointBuffer.RMT[checkPointBuffer.tail] = RMT;
     checkPointBuffer.CPR[checkPointBuffer.tail] = CPR;
+
+    //printf("* Completed checkpoint() for chkpt_id=%llu\n", checkPointBuffer.tail);
     
     for (uint64_t i = 0; i < RMT.size; i++)
     {
@@ -97,9 +101,9 @@ void renamer::checkpoint()
 }
 
 // P4-D get_chkpt_id
-unsigned int renamer::get_chkpt_id(bool load, bool store, bool branch, bool amo, bool csr)
+uint64_t renamer::get_chkpt_id(bool load, bool store, bool branch, bool amo, bool csr)
 {
-    unsigned int latest_chkpt_id = 0;
+    uint64_t latest_chkpt_id = 0;
 
     if (checkPointBuffer.tail == 0)
     {
@@ -109,6 +113,8 @@ unsigned int renamer::get_chkpt_id(bool load, bool store, bool branch, bool amo,
     {
         latest_chkpt_id = checkPointBuffer.tail - 1;
     }
+
+    //printf("* Checking checkpoint at chkpt_id=%llu\n", latest_chkpt_id);
 
     assert(checkPointBuffer.valid[latest_chkpt_id] == true);
 
@@ -121,16 +127,20 @@ unsigned int renamer::get_chkpt_id(bool load, bool store, bool branch, bool amo,
 
     if (load == true)
     {
-        checkPointBuffer.CPR[latest_chkpt_id].load_count++;
+        incr_load_count(latest_chkpt_id);
     }
     if (store == true)
     {
-        checkPointBuffer.CPR[latest_chkpt_id].store_count++;
+        incr_store_count(latest_chkpt_id);
     }
     if (branch == true)
     {
-        checkPointBuffer.CPR[latest_chkpt_id].branch_count++;
+        incr_branch_count(latest_chkpt_id);
     }
+    
+    incr_uncomp_instr(latest_chkpt_id);
+
+    //printf("* Completed get_chkpt_id() chkpt_id=%llu\n", latest_chkpt_id);
 
     return latest_chkpt_id;
 }
@@ -142,6 +152,8 @@ void renamer::free_checkpoint()
     assert(checkPointBuffer.CPR[oldest_chkpt_id].uncomp_instr == 0);
     assert(checkPointBuffer.valid[oldest_chkpt_id] == true);
     checkPointBuffer.valid[oldest_chkpt_id] = false;
+
+    printf("* Completed free_checkpoint for oldest_chkpt_id=%llu\n", oldest_chkpt_id);
 
     // -------------------------------------------------------------------------------------- //
     // P4 - TODO
@@ -175,12 +187,12 @@ bool renamer::stall_checkpoint(uint64_t bundle_chkpts)
 {
     if (bundle_chkpts > noOfFreeCheckpoints())
     {
-        //printf("\n* Completed stall_checkpoint(): Insufficient Active List entries (required=%llu vs available=%llu)\n", bundle_inst, noOfFreeEntriesInActiveList());
+        //printf("\n* Completed stall_checkpoint(): Insufficient checkpointBuffer entries (required=%llu vs available=%llu)\n", bundle_chkpts, noOfFreeCheckpoints());
         return true;
     }
     else
     {
-        //printf("\n* Completed stall_checkpoint(): sufficient Active List entries (required=%llu vs available=%llu)\n", bundle_inst, noOfFreeEntriesInActiveList());
+        //printf("\n* Completed stall_checkpoint(): sufficient checkpointBuffer entries (required=%llu vs available=%llu)\n", bundle_chkpts, noOfFreeCheckpoints());
         return false;
     }
 }
@@ -400,6 +412,7 @@ uint64_t renamer::rollback(uint64_t chkpt_id, bool next, uint64_t &total_loads, 
     while (id != checkPointBuffer.tail)
     {
         checkPointBuffer.valid[id] = false;
+        //printf("* Rollback to chkpt_id=%llu: clear id=%llu\n", chkpt_id, id);
         id = (id + 1) % checkPointBuffer.size;
     }
 
@@ -503,6 +516,14 @@ void renamer::squash()
         checkPointBuffer.tailPhase = !(checkPointBuffer.headPhase);
     }
 
+    uint64_t id = (checkPointBuffer.head + 1) % checkPointBuffer.size;
+    while (id != checkPointBuffer.tail)
+    {
+        checkPointBuffer.valid[id] = false;
+        //printf("* Squash to chkpt_id=%llu: clear id=%llu\n", oldest_chkpt_id, id);
+        id = (id + 1) % checkPointBuffer.size;
+    }
+
     // P4 TODO - FREELIST recovery from Unmapped Bit in oldest CPR checkpoint
     //freeList.head = freeList.tail;
     //freeList.headPhase = !(freeList.tailPhase);
@@ -510,7 +531,7 @@ void renamer::squash()
     uint64_t numFreeRegs = 0;
     for (uint64_t i = 0; i < CPR.size; i++)
 	{
-        if (CPR.unmappedBit[i] == 0)
+        if (CPR.unmappedBit[i] == 1)
         {
             freeList.entry[numFreeRegs] = i;
             numFreeRegs++;

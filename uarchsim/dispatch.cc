@@ -73,43 +73,6 @@ void pipeline_t::dispatch() {
             bundle_store++;
          }
       }
-
-      // P4 - bundle_chkpts
-      // ---------------------------------- //
-      if (PAY.buf[index].good_instruction)
-      {
-         actual = get_pipe()->peek(PAY.buf[index].db_index);
-
-         // 1 - amo or csr (Serializing Instructions)
-         if (PAY.buf[index].inst.opcode() == OP_AMO || PAY.buf[index].inst.opcode() == OP_SYSTEM)
-         {
-            // place a checkpoint before and after a serializing instruction
-            bundle_chkpts++;
-            bundle_chkpts++;
-         }
-         else
-         {
-            // 2 - Exception (Dynamic Exceptions)
-            if (actual->a_exception)
-            {
-               // place a checkpoint before an exception instruction
-               bundle_chkpts++;
-            }
-            else
-            {
-               // 3 - Mispredicted Branch
-               if (PAY.buf[index].inst.opcode() == OP_JAL || PAY.buf[index].inst.opcode() == OP_JALR || PAY.buf[index].inst.opcode() == OP_BRANCH)
-               {
-                  if (PAY.buf[index].next_pc != actual->a_next_pc)
-                  {
-                     // place a checkpoint after a mispredicted branch
-                     bundle_chkpts++;
-                  }
-               }
-            }
-         }
-      }
-      // ---------------------------------- //
    }
 
    // Now, check for available entries in the unified IQ and the LQ/SQ.
@@ -132,8 +95,8 @@ void pipeline_t::dispatch() {
 
    // FIX_ME #6 BEGIN
    // P4 - stall_checkpoint()
-   if (REN->stall_checkpoint(bundle_chkpts))
-      return;
+   //if (REN->stall_checkpoint(bundle_chkpts))
+   //   return;
    // FIX_ME #6 END
 
    //
@@ -186,7 +149,7 @@ void pipeline_t::dispatch() {
       bool amo_flag = IS_AMO(PAY.buf[index].flags);
       bool csr_flag = IS_CSR(PAY.buf[index].flags);
       uint64_t PC = PAY.buf[index].pc;
-      PAY.buf[index].AL_index = REN->dispatch_inst(dest_valid, log_reg, phys_reg, load_flag, store_flag, branch_flag, amo_flag, csr_flag, PC);
+      //PAY.buf[index].AL_index = REN->dispatch_inst(dest_valid, log_reg, phys_reg, load_flag, store_flag, branch_flag, amo_flag, csr_flag, PC);
       // FIX_ME #7 END
 
       // FIX_ME #8

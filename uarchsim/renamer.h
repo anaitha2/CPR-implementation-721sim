@@ -382,10 +382,12 @@ private:
 	{
 		if (checkPointBuffer.headPhase == checkPointBuffer.tailPhase)
 		{
+			//printf("Free Checkpoints = %llu\n", checkPointBuffer.size - (checkPointBuffer.tail - checkPointBuffer.head));
 			return checkPointBuffer.size - (checkPointBuffer.tail - checkPointBuffer.head);
 		}
 		else
 		{
+			//printf("Free Checkpoints = %llu\n", checkPointBuffer.head - checkPointBuffer.tail);
 			return checkPointBuffer.head - checkPointBuffer.tail;
 		}
 	}
@@ -411,10 +413,23 @@ public:
 	////////////////////////////////////////
 	// Public functions.
 	////////////////////////////////////////
-	void increamentUncompletedInstr(uint64_t chkpt_id)
+	void incr_uncomp_instr(uint64_t chkpt_id)
 	{
 		checkPointBuffer.CPR[chkpt_id].uncomp_instr++;
 	}
+	void incr_load_count(uint64_t chkpt_id)
+	{
+		checkPointBuffer.CPR[chkpt_id].load_count++;
+	}
+	void incr_store_count(uint64_t chkpt_id)
+	{
+		checkPointBuffer.CPR[chkpt_id].store_count++;
+	}
+	void incr_branch_count(uint64_t chkpt_id)
+	{
+		checkPointBuffer.CPR[chkpt_id].branch_count++;
+	}
+
 
 	uint64_t get_max_instr_bw_checkpoints()
 	{
@@ -591,9 +606,9 @@ public:
 	/////////////////////////////////////////////////////////////////////
 	// This function is used to get the branch mask for an instruction.
 	/////////////////////////////////////////////////////////////////////
-	uint64_t get_chkpt_id()
+	uint64_t get_branch_mask()
 	{
-		//std::cout << "\n* Completed get_chkpt_id() to read GBM=" << std::bitset<32>(GBM) << '\n';
+		//std::cout << "\n* Completed get_branch_mask() to read GBM=" << std::bitset<32>(GBM) << '\n';
 		return GBM;
 	}
 
@@ -644,7 +659,7 @@ public:
 	void checkpoint();
 	
 	//P4-D get_checkPoint_ID declaration
-	unsigned int get_chkpt_id(bool load, bool store, bool branch, bool amo, bool csr);
+	uint64_t get_chkpt_id(bool load, bool store, bool branch, bool amo, bool csr);
 	
 	void free_checkpoint();
 
