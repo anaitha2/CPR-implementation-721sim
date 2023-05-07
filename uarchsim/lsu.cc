@@ -644,6 +644,16 @@ void lsu::restore(unsigned int recover_lq_tail, bool recover_lq_tail_phase,
 	/////////////////////////////
 	// Restore LQ.
 	/////////////////////////////
+	uint64_t index = recover_lq_tail;
+	while (index != lq_tail)
+	{
+		if (LQ[index].addr_avail && !LQ[index].value_avail)
+		{
+			if (proc->PAY.buf[LQ[index].pay_index].C_valid)
+				proc->REN->dec_usage_counter(proc->PAY.buf[LQ[index].pay_index].C_phys_reg);
+		}
+		index = MOD_S((index+1), lq_size);
+	}
 
 	// Restore tail state.
 	lq_tail = recover_lq_tail;
@@ -830,6 +840,14 @@ void lsu::flush() {
 	lq_length = 0;
 
 	for (unsigned int i = 0; i < lq_size; i++) {
+		if (LQ[i].valid == true)
+		{
+			if (LQ[i].addr_avail && !LQ[i].value_avail)
+			{
+				if (proc->PAY.buf[LQ[i].pay_index].C_valid)
+					proc->REN->dec_usage_counter(proc->PAY.buf[LQ[i].pay_index].C_phys_reg);
+			}
+		}
 		LQ[i].valid = false;
 	}
 

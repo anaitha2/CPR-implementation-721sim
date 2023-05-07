@@ -268,6 +268,17 @@ void issue_queue::remove(unsigned int i) {
 void issue_queue::flush() {
 	length = 0;
 	for (unsigned int i = 0; i < size; i++) {
+		if (q[i].valid == true)
+		{
+			if (proc->PAY.buf[q[i].index].A_valid)
+				proc->REN->dec_usage_counter(proc->PAY.buf[q[i].index].A_phys_reg);
+			if (proc->PAY.buf[q[i].index].B_valid)
+				proc->REN->dec_usage_counter(proc->PAY.buf[q[i].index].B_phys_reg);
+			if (proc->PAY.buf[q[i].index].D_valid)
+				proc->REN->dec_usage_counter(proc->PAY.buf[q[i].index].D_phys_reg);
+			if (proc->PAY.buf[q[i].index].C_valid)
+				proc->REN->dec_usage_counter(proc->PAY.buf[q[i].index].C_phys_reg);
+		}
 		q[i].valid = false;
 	}
 
@@ -293,11 +304,14 @@ void issue_queue::squash(uint64_t squash_mask) {
 		// Now q[i].chkpt_id has the chkpt_id
 		// Since we assigned 'chkpt_id' to 'RENAMER[i].chkpt_id'
 		if (q[i].valid && BIT_IS_ONE(squash_mask, q[i].chkpt_id)) {
-			proc->REN->dec_usage_counter(proc->PAY.buf[q[i].index].A_phys_reg);
-			proc->REN->dec_usage_counter(proc->PAY.buf[q[i].index].B_phys_reg);
-			proc->REN->dec_usage_counter(proc->PAY.buf[q[i].index].D_phys_reg);
-			proc->REN->dec_usage_counter(proc->PAY.buf[q[i].index].C_phys_reg);
-			
+			if (proc->PAY.buf[q[i].index].A_valid)
+				proc->REN->dec_usage_counter(proc->PAY.buf[q[i].index].A_phys_reg);
+			if (proc->PAY.buf[q[i].index].B_valid)
+				proc->REN->dec_usage_counter(proc->PAY.buf[q[i].index].B_phys_reg);
+			if (proc->PAY.buf[q[i].index].D_valid)
+				proc->REN->dec_usage_counter(proc->PAY.buf[q[i].index].D_phys_reg);
+			if (proc->PAY.buf[q[i].index].C_valid)
+				proc->REN->dec_usage_counter(proc->PAY.buf[q[i].index].C_phys_reg);
 			remove(i);
 		}
 	}

@@ -5,6 +5,7 @@
 using std::vector;
 #include <bits/stdc++.h>
 #include <math.h>
+#include <cassert>
 
 using namespace std;
 
@@ -79,29 +80,26 @@ private:
 		freeList.tailPhase = 1;
 	}
 
-	uint64_t noOfFreeRegistersInFreeList()
-	{
-		if (freeList.headPhase == freeList.tailPhase)
-		{
-			return freeList.tail - freeList.head;
-		}
-		else
-		{
-			return freeList.size - (freeList.head - freeList.tail);
-		}
-	}
-
 	uint64_t popRegisterFromFreeList()
 	{
 		assert ((freeList.head != freeList.tail) || (freeList.headPhase != freeList.tailPhase));
 		uint64_t physicalRegisterNumber = freeList.entry[freeList.head];
-		//printf("\nPop a Reg from FreeList: Head=%llu, PhysicalRegNo=%llu", freeList.head, physicalRegisterNumber);
+		//printf("Pop a Reg from FreeList: Head=%llu, PhysicalRegNo=%llu\n", freeList.head, physicalRegisterNumber);
 		freeList.head = (freeList.head + 1) % freeList.size;
 		if (freeList.head == 0)
 			freeList.headPhase  = !(freeList.headPhase);
 
 		//printf(" and now newHead=%llu\n", freeList.head);
 		return physicalRegisterNumber;
+	}
+	void pushRegisterToFreeList(uint64_t phys_reg)
+	{
+		assert (!(freeList.head == freeList.tail && freeList.headPhase != freeList.tailPhase));
+		freeList.entry[freeList.tail] = phys_reg;
+		//printf("Push a Reg to FreeList: Head=%llu, HeadPhase=%llu, Tail=%llu, TailHead=%llu, PhysicalRegNo=%llu\n", freeList.head, freeList.headPhase, freeList.tail, freeList.tailPhase, phys_reg);
+		freeList.tail = (freeList.tail + 1) % freeList.size;
+		if (freeList.tail == 0)
+			freeList.tailPhase  = !(freeList.tailPhase);
 	}
 
 	/////////////////////////////////////////////////////////////////////
@@ -179,7 +177,7 @@ private:
 	// P4-D 
 	struct TS_CPREntries {
 		vector <uint64_t> unmappedBit;
-		vector <uint64_t> usageCounter;
+		//vector <uint64_t> usageCounter;
 		uint64_t size;	// Indicates the total number of physical registers
 		
 		bool loadFlag;
@@ -195,6 +193,8 @@ private:
 	    uint64_t  branch_count;
 	} CPR;
 
+	vector <uint64_t> usageCounter;
+
 	void initializeCPR(uint64_t n_phys_regs, uint64_t n_log_regs)
 	{
 		CPR.size = n_phys_regs;
@@ -204,12 +204,14 @@ private:
 			{
 				// First n_log_regs Logical regs have Unmapped Bit of 0 and Usage counter of 1
 				CPR.unmappedBit.push_back(0);
-				CPR.usageCounter.push_back(1);
+				//CPR.usageCounter.push_back(1);
+				usageCounter.push_back(1);
 			}
 			else
 			{
 				CPR.unmappedBit.push_back(1);
-				CPR.usageCounter.push_back(0);
+				//CPR.usageCounter.push_back(0);
+				usageCounter.push_back(0);
 			}
 		}
 
@@ -342,7 +344,7 @@ private:
 
 		vector<TS_CPREntries> CPR;
 		vector<TS_MapTable> RMT;
-		vector<bool> valid;
+		vector<int> valid;
 
 		uint64_t head, tail;
 		bool headPhase, tailPhase;
@@ -364,17 +366,17 @@ private:
 		// First checkpoint has the info of the initial state
 		checkPointBuffer.CPR.push_back(CPR);
 		checkPointBuffer.RMT.push_back(RMT);
-		checkPointBuffer.valid.push_back(true);
+		checkPointBuffer.valid.push_back(1);
 
 		// Rest 'checkPointBuffer.size(total number of checkpoints) - 1' checkpoints are empty
 		TS_CPREntries emptyEntry;
 		emptyEntry.size = n_phys_regs;
 		TS_MapTable emptyRMT;
-		for (int i = 0; i < checkPointBuffer.size-1; i++)
+		for (int i = 1; i < checkPointBuffer.size; i++)
 		{
 			checkPointBuffer.CPR.push_back(emptyEntry);
 			checkPointBuffer.RMT.push_back(emptyRMT);
-			checkPointBuffer.valid.push_back(false);
+			checkPointBuffer.valid.push_back(0);
 		}
 	}
 
@@ -438,19 +440,74 @@ public:
 
 	void inc_usage_counter(uint64_t phys_reg)
 	{
-		CPR.usageCounter[phys_reg]++;
+		//printf("inc_usage_counter of p%llu\n\n", phys_reg);
+		usageCounter[phys_reg]++;
 	}
 	void dec_usage_counter(uint64_t phys_reg)
 	{
-		CPR.usageCounter[phys_reg]--;
+		//printf("dec_usage_counter of p%llu\n\n", phys_reg);
+		//printf("usage_counter of p%llu is %llu\n", phys_reg,usageCounter[phys_reg]);
+		assert(usageCounter[phys_reg] > 0);
+		usageCounter[phys_reg]--;
+		//printf("usage_counter after decreament of p%llu is %llu\n", phys_reg,usageCounter[phys_reg]);
+		//printf("Unmapped Bit = %llu and Usage Counter = %llu of p%llu\n", CPR.unmappedBit[phys_reg], usageCounter[phys_reg], phys_reg);
+
+		// If a phys_reg's usage counter is 0 and it is not present in RMT then push it to Free list
+		if (CPR.unmappedBit[phys_reg] == 1 && usageCounter[phys_reg] == 0)
+			pushRegisterToFreeList(phys_reg);
 	}
+
 	void unmap(uint64_t phys_reg)	// no longer in RMT
 	{
 		CPR.unmappedBit[phys_reg] = 1;
+		//printf("Unmapped Bit = %llu and Usage Counter = %llu of p%llu\n", CPR.unmappedBit[phys_reg], usageCounter[phys_reg], phys_reg);
+		// If a phys_reg's usage counter is 0 and it is not present in RMT then push it to Free list
+		if (CPR.unmappedBit[phys_reg] == 1 && usageCounter[phys_reg] == 0)
+			pushRegisterToFreeList(phys_reg);
 	}
 	void map(uint64_t phys_reg)	// While adding physical reg to RMT
 	{
 		CPR.unmappedBit[phys_reg] = 0;
+	}
+
+	uint64_t noOfFreeRegistersInFreeList()
+	{
+		if (freeList.headPhase == freeList.tailPhase)
+		{
+			return freeList.tail - freeList.head;
+		}
+		else
+		{
+			return freeList.size - (freeList.head - freeList.tail);
+		}
+	}
+
+	void printFreeRegs(std::string tag)
+	{
+		uint64_t freeRegs = 0;
+		for (uint64_t i = 0; i < CPR.size; i++)
+		{
+			if (CPR.unmappedBit[i] == 1 && usageCounter[i] == 0)
+			{
+				freeRegs++;
+			}
+		}
+		printf("%s: freeRegs=%llu and noOfFreeRegistersInFreeList=%llu\n", tag.c_str(), freeRegs, noOfFreeRegistersInFreeList());
+	}
+
+	bool inBetween(uint64_t id, uint64_t chkpt_id, uint64_t youngest_chkpt_id)
+	{
+		uint64_t c = chkpt_id;
+		while (c != ((youngest_chkpt_id+1) % checkPointBuffer.size))
+		{
+			if (id == c)
+			{
+				//printf("id=%llu is between chkpt_id=%llu and youngest_chkpt_id=%llu\n", id, chkpt_id, youngest_chkpt_id);
+				return true;
+			}
+			c = (c+1) % checkPointBuffer.size;
+		}
+		return false;
 	}
 
 	void printRMTState()
@@ -531,7 +588,54 @@ public:
 				m = 0;
 			}
 		}
+		std::cout << '\n';
 		std::cout << "-------------------------------------\n";
+	}
+
+	void printCheckpointBufferState()
+	{
+		//for (uint64_t i = 0; i < checkPointBuffer.size; i++)
+		uint64_t i = checkPointBuffer.head;
+		if (true)
+		{
+			printf("chkpt_id=%llu and valid=%d\n", i, checkPointBuffer.valid[i]);
+			std::cout << "-------------------------------------\n";
+			for (uint64_t j = 0; j < CPR.size; j++)
+			{
+				std::cout << checkPointBuffer.CPR[i].unmappedBit[j] << ' ';
+			}
+			std::cout << '\n';
+			std::cout << "-------------------------------------\n";
+		}
+	}
+
+	void printUsageCounterState()
+	{
+		printf("Usage Counters:\n");
+		std::cout << "-------------------------------------\n";
+		for (uint64_t j = 0; j < CPR.size; j++)
+		{
+			std::cout << 'p' << j << " - Unmapped=" << CPR.unmappedBit[j] << " Usage=" << usageCounter[j] << '\n';
+		}
+		std::cout << "-------------------------------------\n";
+	}
+
+	void printMappedRegs()
+	{
+		uint64_t mapped = 0;
+		uint64_t beingUsed = 0;
+		for (uint64_t j = 0; j < CPR.size; j++)
+		{
+			if (CPR.unmappedBit[j] == 0)
+			{
+				mapped++;
+			}
+			if (usageCounter[j] != 0)
+			{
+				beingUsed++;
+			}
+		}
+		std::cout << "Total Phy Regs = " << CPR.size << " : No of Mapped Regs = " << mapped << " and Being Used = " << beingUsed << '\n';
 	}
 
 	void printDetailedStates()
@@ -659,7 +763,7 @@ public:
 	void checkpoint();
 	
 	//P4-D get_checkPoint_ID declaration
-	uint64_t get_chkpt_id(bool load, bool store, bool branch, bool amo, bool csr);
+	uint64_t get_checkpoint_id(bool load, bool store, bool branch, bool amo, bool csr);
 	
 	void free_checkpoint();
 
@@ -901,17 +1005,3 @@ public:
 	/////////////////////////////////////////////////////////////////////
 	bool get_exception(uint64_t AL_index);
 };
-
-/*uint64_t getIndexOfValueInVector(vector<uint64_t> x, uint64_t value)
-{
-    auto it = find(x.begin(), x.end(), value);
-    if (it != x.end())
-    {
-        uint64_t index = it - x.begin();
-		return index;
-    }
-    else
-	{
-        return -1;
-    }
-}*/

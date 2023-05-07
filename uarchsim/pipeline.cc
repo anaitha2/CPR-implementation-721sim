@@ -521,22 +521,23 @@ bool pipeline_t::step_micro(size_t instret_limit, size_t& instret)
         size_t lane_number;
 
         unsigned int prev_commit_count = counter(commit_count);
-        //for (lane_number = 0; lane_number < RETIRE_WIDTH; lane_number++) {
-        //  retire(instret);            // Retire Stage
-        //  update_timer(&state, instret-prev_instret);
-        //  prev_instret = instret;
-        //  // Halt retirement if its time for an HTIF tick as this will change state
-        //  if(instret == instret_limit)
-        //    break;
-        //  // Stop simulation if limit reached
-        //  if((counter(commit_count) >= stop_amt) && use_stop_amt){
-        //    //stats->dump_knobs();
-        //    //stats->dump_counters();
-        //    //stats->dump_rates();
-        //    return true;
-        //  }
-        //}
+        /*for (lane_number = 0; lane_number < RETIRE_WIDTH; lane_number++) {
+          retire(instret);            // Retire Stage
+          update_timer(&state, instret-prev_instret);
+          prev_instret = instret;
+          // Halt retirement if its time for an HTIF tick as this will change state
+          if(instret == instret_limit)
+            break;
+          // Stop simulation if limit reached
+          if((counter(commit_count) >= stop_amt) && use_stop_amt){
+            //stats->dump_knobs();
+            //stats->dump_counters();
+            //stats->dump_rates();
+            return true;
+          }
+        }*/
         // P4-D replaced retirement unit above with new retire function below
+        //printf("Retire command - %llu %llu\n", instret, instret_limit);
         retire(instret, instret_limit);
         // Stop simulation if the instruction limit is reached.
         if ((counter(commit_count) >= stop_amt) && use_stop_amt) {

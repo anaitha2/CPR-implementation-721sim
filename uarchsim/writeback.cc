@@ -13,6 +13,7 @@ void pipeline_t::writeback(unsigned int lane_number) {
       // Get the instruction's index into PAY.
       //////////////////////////////////////////////////////////////////////////////////////////////////////////
       index = Execution_Lanes[lane_number].wb.index;
+      //printf("Writeback PAY index=%llu and chkpt_id=%llu\n",index, PAY.buf[index].chkpt_id);
 
       //////////////////////////////////////////////////////////////////////////////////////////////////////////
       // FIX_ME #15
@@ -37,9 +38,10 @@ void pipeline_t::writeback(unsigned int lane_number) {
 
       if (PAY.buf[index].checkpoint) {
 
-         
-         if ((PAY.buf[index].next_pc != PAY.buf[index].c_next_pc) && (PAY.buf[index].checkpoint == false)) {
+         if ((PAY.buf[index].next_pc != PAY.buf[index].c_next_pc) && (PAY.buf[index].good_instruction == true)) {
             // Branch was mispredicted.
+            //printf("Branch Misprediction START\n");
+            //REN->printUsageCounterState();
 
             // Roll-back the Fetch Unit.
             FetchUnit->mispredict(PAY.buf[index].pred_tag,
@@ -63,10 +65,10 @@ void pipeline_t::writeback(unsigned int lane_number) {
             //    This will restore the RMT, FL, and AL, and also free this and future checkpoints... etc.
 
             // FIX_ME #15c BEGIN
-            REN->rollback(PAY.buf[index].chkpt_id, true, total_loads, total_stores, total_branches);
+            squash_mask =  REN->rollback(PAY.buf[index].chkpt_id, true, total_loads, total_stores, total_branches);
             // FIX_ME #15c END
-
             // Restore the LQ/SQ.
+            //printf("LSU Restore\n");
             LSU.restore(PAY.buf[index].LQ_index, PAY.buf[index].LQ_phase, PAY.buf[index].SQ_index, PAY.buf[index].SQ_phase);
 
             // FIX_ME #15d
@@ -80,14 +82,16 @@ void pipeline_t::writeback(unsigned int lane_number) {
             //    * resolve() takes two arguments. The first argument is the branch's ID. The second argument is a flag that
             //      indicates whether or not the branch was predicted correctly: in this case it is not-correct.
             //    * See pipeline.h for details about the two arguments of resolve().
-
             // FIX_ME #15d BEGIN
             //resolve(PAY.buf[index].branch_ID, false);
+            //printf("Selective Squash\n");
             selective_squash(squash_mask);
             // FIX_ME #15d END
 
             // Rollback PAY to the point of the branch.
+            //printf("Rollback\n");
             PAY.rollback(index);
+            //printf("Branch Misprediction END\n");
          }
       }
 
@@ -101,7 +105,7 @@ void pipeline_t::writeback(unsigned int lane_number) {
       //////////////////////////////////////////////////////////////////////////////////////////////////////////
 
       // FIX_ME #16 BEGIN
-      //printf("index=%llu and chkpt_id=%llu\n", index, PAY.buf[index].chkpt_id);
+      //printf("set_complete from writeback: index=%llu and chkpt_id=%llu\n", index, PAY.buf[index].chkpt_id);
       REN->set_complete(PAY.buf[index].chkpt_id);
       // FIX_ME #16 END
 

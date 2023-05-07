@@ -16,6 +16,7 @@ void pipeline_t::execute(unsigned int lane_number) {
       // Get the instruction's index into PAY.
       //////////////////////////////////////////////////////////////////////////////////////////////////////////
       index = Execution_Lanes[lane_number].ex[depth].index;
+      //printf("execute: lane_number=%llu and depth=%llu\n", lane_number, index);
 
       //////////////////////////////////////////////////////////////////////////////////////////////////////////
       // Execute the instruction.
@@ -76,6 +77,7 @@ void pipeline_t::execute(unsigned int lane_number) {
             {
                IQ.wakeup(PAY.buf[index].C_phys_reg);
                REN->set_ready(PAY.buf[index].C_phys_reg);
+               //printf("Load Instruc Execute\n");
                REN->write(PAY.buf[index].C_phys_reg, PAY.buf[index].C_value.dw);
             }
             // FIX_ME #13 END
@@ -102,6 +104,7 @@ void pipeline_t::execute(unsigned int lane_number) {
                assert(PAY.buf[index].C_log_reg != 0);  // if X0, would have cleared C_valid in Decode Stage
                PAY.buf[index].C_value.dw = 0;
                REN->set_ready(PAY.buf[index].C_phys_reg);
+               //printf("Store Instruc Execute\n");
                REN->write(PAY.buf[index].C_phys_reg, 0);
             }
          }
@@ -142,6 +145,7 @@ void pipeline_t::execute(unsigned int lane_number) {
          // FIX_ME #14 BEGIN
          if (PAY.buf[index].C_valid)
          {
+            //printf("ALU Instruc Execute\n");
             REN->write(PAY.buf[index].C_phys_reg, PAY.buf[index].C_value.dw);
          }
          // FIX_ME #14 END
@@ -259,6 +263,7 @@ void pipeline_t::load_replay() {
 	      // FIX_ME #18a BEGIN
          IQ.wakeup(PAY.buf[index].C_phys_reg);
          REN->set_ready(PAY.buf[index].C_phys_reg);
+         //printf("Replay Stalled Load Instruc Execute\n");
          REN->write(PAY.buf[index].C_phys_reg, PAY.buf[index].C_value.dw);
          // FIX_ME #18a END
       }
@@ -271,6 +276,7 @@ void pipeline_t::load_replay() {
       // 2. Set the completed bit for this instruction in the Active List.
 
       // FIX_ME #18b BEGIN
+      //printf("set_complete from execute: index=%llu and chkpt_id=%llu\n", index, PAY.buf[index].chkpt_id);
       REN->set_complete(PAY.buf[index].chkpt_id);
       // FIX_ME #18b END
    }

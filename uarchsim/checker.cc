@@ -71,6 +71,7 @@ void pipeline_t::checker() {
 
    // Get pointer to the corresponding instruction in the functional simulator.
 	 // This enables checking results of the pipeline simulator.
+	 //printf("Retiring a bad instruc - %d\n", PAY.buf[head].good_instruction);
 	 assert(PAY.buf[head].good_instruction && (PAY.buf[head].db_index != DEBUG_INDEX_INVALID));
 	 if (PAY.buf[head].split && PAY.buf[head].upper)
 	    actual = pipe->peek(PAY.buf[head].db_index);
@@ -87,7 +88,7 @@ void pipeline_t::checker() {
    // don't check anything else
    if(actual->a_exception){
      // TODO: Add this check
-     assert(REN->get_exception(PAY.buf[head].AL_index) == true);
+     assert(REN->get_exception(PAY.buf[head].chkpt_id) == true);
    }
    // If not an architectural exception
    else{

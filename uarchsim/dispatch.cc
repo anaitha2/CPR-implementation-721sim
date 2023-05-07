@@ -26,6 +26,7 @@ void pipeline_t::dispatch() {
 
    // First stall condition: There isn't a dispatch bundle.
    if (!DISPATCH[0].valid) {
+      //printf("No dispatch bundle\n");
       return;
    }
 
@@ -76,6 +77,12 @@ void pipeline_t::dispatch() {
    }
 
    // Now, check for available entries in the unified IQ and the LQ/SQ.
+   if (LSU.stall(bundle_load, bundle_store)) {
+      //printf("No entries in the LQ/SQ.\n");
+   }
+   if (IQ.stall(bundle_inst)) {
+      //printf("No entries in the unified IQ.\n");
+   }
    if (IQ.stall(bundle_inst) || LSU.stall(bundle_load, bundle_store)) {
       return;
    }
@@ -246,6 +253,7 @@ void pipeline_t::dispatch() {
 
             // *** FIX_ME #10b (part 1): Set completed bit in Active List.
             // FIX_ME #10b1 BEGIN
+            //printf("set_complete from dispatch: index=%llu and chkpt_id=%llu\n", index, PAY.buf[index].chkpt_id);
             REN->set_complete(PAY.buf[index].chkpt_id);
             // FIX_ME #10b1 END
 
@@ -283,6 +291,7 @@ void pipeline_t::dispatch() {
       // Dispatch loads and stores into the LQ/SQ and record their LQ/SQ indices.
       if (IS_MEM_OP(PAY.buf[index].flags)) {
          if (!PAY.buf[index].split_store || PAY.buf[index].upper) {
+            //printf("chkpt_id");
             LSU.dispatch(IS_LOAD(PAY.buf[index].flags),
                          PAY.buf[index].size,
                          PAY.buf[index].left,

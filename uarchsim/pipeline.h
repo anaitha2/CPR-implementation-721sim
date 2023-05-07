@@ -189,7 +189,12 @@ public:
 	    uint32_t  fu_lat[]
 	);
     // P4-D
-    typedef enum {RETIRE_IDLE, RETIRE_BULK_COMMIT, RETIRE_FINALIZE} retire_state_e;
+    typedef enum {
+		RETIRE_IDLE, 
+		RETIRE_BULK_COMMIT, 
+		RETIRE_FINALIZE
+	} retire_state_e;
+	
 	typedef struct {
      retire_state_e state;
      // The following seven variables should be passed by reference to 
